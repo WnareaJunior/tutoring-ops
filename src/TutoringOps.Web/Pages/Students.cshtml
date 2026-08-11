@@ -1,0 +1,136 @@
+@page
+@model StudentsModel
+@{
+    ViewData["Title"] = "Students";
+}
+
+<h1>Students</h1>
+<p class="subtitle">Balances come straight from PKG_BILLING.get_balance -- nothing is recomputed here.</p>
+
+@if (Model.SuccessMessage is not null)
+{
+    <div class="alert ok">@Model.SuccessMessage</div>
+}
+@if (Model.ErrorMessage is not null)
+{
+    <div class="alert error">
+        @Model.ErrorMessage
+        @if (Model.ErrorCode is not null)
+        {
+            <br /><code>@Model.ErrorCode</code>
+        }
+    </div>
+}
+
+<div class="card">
+    <table>
+        <thead>
+            <tr>
+                <th>Student</th>
+                <th>Parent contact</th>
+                <th>Language</th>
+                <th>Hours left</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+        @if (Model.Students.Count == 0)
+        {
+            <tr><td colspan="5" class="muted">No students yet.</td></tr>
+        }
+        @foreach (var student in Model.Students)
+        {
+            <tr>
+                <td>@student.FullName</td>
+                <td>@student.ParentContact</td>
+                <td>@(student.PreferredLanguage == "ES" ? "Español" : "English")</td>
+                <td>
+                    @* Under two hours is the point to sell the next package. *@
+                    <span class="pill @(student.HoursRemaining < 2 ? "low" : "")">
+                        @student.HoursRemaining.ToString("0.##") h
+                    </span>
+                </td>
+                <td>@(student.IsActive ? "active" : "inactive")</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</div>
+
+<h2>Sell a package</h2>
+<div class="card">
+    <form method="post" asp-page-handler="SellPackage">
+        <div class="row">
+            <div class="field">
+                <label asp-for="Package.StudentId">Student</label>
+                <select asp-for="Package.StudentId">
+                    <option value="0">Choose…</option>
+                    @foreach (var student in Model.Students.Where(s => s.IsActive))
+                    {
+                        <option value="@student.StudentId">@student.FullName</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label asp-for="Package.Hours">Hours</label>
+                <input asp-for="Package.Hours" type="number" step="0.5" min="0.5" style="width:90px" />
+            </div>
+            <div class="field">
+                <label asp-for="Package.Amount">Amount</label>
+                <input asp-for="Package.Amount" type="number" step="1" min="0" style="width:110px" />
+            </div>
+            <div class="field">
+                <label asp-for="Package.Method">Method</label>
+                <select asp-for="Package.Method">
+                    <option>ZELLE</option>
+                    <option>CASH</option>
+                    <option>VENMO</option>
+                    <option>CARD</option>
+                    <option>TRANSFER</option>
+                </select>
+            </div>
+            <div class="field">
+                <label>&nbsp;</label>
+                <button type="submit">Add hours</button>
+            </div>
+        </div>
+    </form>
+    <p class="muted" style="margin-bottom:0">
+        Hours are spent oldest package first, so an older block always drains
+        before a newer one.
+    </p>
+</div>
+
+<h2>Add a student</h2>
+<div class="card">
+    <form method="post" asp-page-handler="AddStudent">
+        <div class="row">
+            <div class="field">
+                <label asp-for="NewStudent.FullName">Name</label>
+                <input asp-for="NewStudent.FullName" required />
+            </div>
+            <div class="field">
+                <label asp-for="NewStudent.ParentContact">Parent email</label>
+                <input asp-for="NewStudent.ParentContact" type="email" required />
+            </div>
+            <div class="field">
+                <label asp-for="NewStudent.ParentPhone">Phone</label>
+                <input asp-for="NewStudent.ParentPhone" />
+            </div>
+            <div class="field">
+                <label asp-for="NewStudent.PreferredLanguage">Language</label>
+                <select asp-for="NewStudent.PreferredLanguage">
+                    <option value="EN">English</option>
+                    <option value="ES">Español</option>
+                </select>
+            </div>
+            <div class="field">
+                <label>&nbsp;</label>
+                <button type="submit">Add</button>
+            </div>
+        </div>
+    </form>
+    <p class="muted" style="margin-bottom:0">
+        The language chosen here decides which template the reminder emails use.
+    </p>
+</div>

@@ -1,0 +1,28 @@
+# Build output
+bin/
+obj/
+out/
+publish/
+*.user
+*.suo
+
+# .NET local tooling
+.vs/
+.vscode/
+!.vscode/extensions.json
+
+# Local settings that hold secrets. The committed *.template files show the shape.
+**/local.settings.json
+**/appsettings.Local.json
+**/appsettings.Development.local.json
+.env
+*.env.local
+
+# Oracle client / test artifacts
+db/logs/
+*.log
+spool*.txt
+
+# OS noise
+.DS_Store
+Thumbs.db

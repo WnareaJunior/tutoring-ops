@@ -1,0 +1,29 @@
+{
+  "version": "2.0",
+  "logging": {
+    "applicationInsights": {
+      "samplingSettings": {
+        "isEnabled": true,
+        "excludedTypes": "Request"
+      }
+    },
+    "logLevel": {
+      "default": "Information",
+      "TutoringOps": "Debug"
+    }
+  },
+  "extensions": {
+    "serviceBus": {
+      "maxConcurrentCalls": 4,
+      "prefetchCount": 0,
+      "autoCompleteMessages": true,
+      "maxAutoLockRenewalDuration": "00:05:00"
+    }
+  },
+  "retry": {
+    "strategy": "exponentialBackoff",
+    "maxRetryCount": 5,
+    "minimumInterval": "00:00:05",
+    "maximumInterval": "00:05:00"
+  }
+}

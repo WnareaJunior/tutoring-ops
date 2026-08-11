@@ -1,0 +1,173 @@
+@api = http://localhost:5080
+
+### ---------------------------------------------------------------------------
+### Week 2 exit test: the full booking flow, including every failure case.
+### Run these top to bottom against a freshly seeded database.
+### ---------------------------------------------------------------------------
+
+### Is the API up and can it reach Oracle?
+GET {{api}}/health/ready
+
+### 1. Create a student
+# @name createStudent
+POST {{api}}/students
+Content-Type: application/json
+
+{
+  "fullName": "Test Parent Child",
+  "parentContact": "test.parent@example.com",
+  "parentPhone": "555-0199",
+  "preferredLanguage": "ES"
+}
+
+### Capture the id for the calls below
+@studentId = {{createStudent.response.body.studentId}}
+
+### 2. Balance starts at zero
+GET {{api}}/students/{{studentId}}/balance
+
+### 3. FAILURE CASE -- booking with no hours and no credit.
+### Expect 402 Payment Required, title ERR_INSUFFICIENT_HOURS.
+POST {{api}}/sessions
+Content-Type: application/json
+
+{
+  "studentId": {{studentId}},
+  "startTime": "2026-09-15T10:00:00",
+  "durationMinutes": 60
+}
+
+### 4. Buy a package
+POST {{api}}/packages
+Content-Type: application/json
+
+{
+  "studentId": {{studentId}},
+  "hours": 10,
+  "amount": 600,
+  "method": "ZELLE"
+}
+
+### 5. Balance is now 10
+GET {{api}}/students/{{studentId}}/balance
+
+### 6. Book a session -- expect 201 Created
+# @name bookSession
+POST {{api}}/sessions
+Content-Type: application/json
+
+{
+  "studentId": {{studentId}},
+  "startTime": "2026-09-15T10:00:00",
+  "durationMinutes": 90,
+  "notes": "Reading section"
+}
+
+@sessionId = {{bookSession.response.body.sessionId}}
+
+### 7. Balance dropped by 1.5 hours -- reserved at booking, not at completion
+GET {{api}}/students/{{studentId}}/balance
+
+### 8. FAILURE CASE -- double booking the same slot.
+### Expect 409 Conflict, title ERR_DOUBLE_BOOKED.
+POST {{api}}/sessions
+Content-Type: application/json
+
+{
+  "studentId": {{studentId}},
+  "startTime": "2026-09-15T10:30:00",
+  "durationMinutes": 60
+}
+
+### 9. FAILURE CASE -- outside business hours.
+### Expect 422, title ERR_OUTSIDE_BUSINESS_HOURS.
+POST {{api}}/sessions
+Content-Type: application/json
+
+{
+  "studentId": {{studentId}},
+  "startTime": "2026-09-15T06:00:00",
+  "durationMinutes": 60
+}
+
+### 10. FAILURE CASE -- a duration off the 15 minute grid.
+### Expect 422, title ERR_INVALID_DURATION.
+POST {{api}}/sessions
+Content-Type: application/json
+
+{
+  "studentId": {{studentId}},
+  "startTime": "2026-09-16T10:00:00",
+  "durationMinutes": 50
+}
+
+### 11. FAILURE CASE -- a start time in the past.
+### Expect 422, title ERR_START_IN_PAST.
+POST {{api}}/sessions
+Content-Type: application/json
+
+{
+  "studentId": {{studentId}},
+  "startTime": "2020-01-01T10:00:00",
+  "durationMinutes": 60
+}
+
+### 12. The week's schedule for the admin calendar
+GET {{api}}/sessions?from=2026-09-14&to=2026-09-20
+
+### 13. Cancel outside the 24 hour window -- status CANCELLED, hours returned
+DELETE {{api}}/sessions/{{sessionId}}
+
+### 14. Balance is back to 10
+GET {{api}}/students/{{studentId}}/balance
+
+### 15. FAILURE CASE -- cancelling twice.
+### Expect 409 Conflict, title ERR_INVALID_TRANSITION. This is the check that
+### stops the same hours being credited back a second time.
+DELETE {{api}}/sessions/{{sessionId}}
+
+### 16. Book again, then complete it
+# @name secondBooking
+POST {{api}}/sessions
+Content-Type: application/json
+
+{
+  "studentId": {{studentId}},
+  "startTime": "2026-09-17T14:00:00",
+  "durationMinutes": 60
+}
+
+@secondSessionId = {{secondBooking.response.body.sessionId}}
+
+### 17. Complete it -- status COMPLETED, hours stay spent
+POST {{api}}/sessions/{{secondSessionId}}/complete
+
+### 18. FAILURE CASE -- cancelling a completed session.
+### Expect 409 Conflict, title ERR_INVALID_TRANSITION.
+DELETE {{api}}/sessions/{{secondSessionId}}
+
+### 19. The parent dashboard read model
+GET {{api}}/students/{{studentId}}/dashboard
+
+### 20. Events waiting to reach Service Bus (should drain to 0 within seconds)
+GET {{api}}/ops/outbox
+X-Ops-Key: local-dev-key
+
+### 21. Queue tomorrow's reminders by hand, the way the timer function does
+POST {{api}}/ops/reminders?hoursAhead=24
+X-Ops-Key: local-dev-key
+
+### ---------------------------------------------------------------------------
+### Pay-per-session path
+### ---------------------------------------------------------------------------
+
+### Record loose cash for a student with no package
+POST {{api}}/payments
+Content-Type: application/json
+
+{
+  "studentId": {{studentId}},
+  "amount": 75,
+  "method": "VENMO",
+  "notes": "single lesson"
+}

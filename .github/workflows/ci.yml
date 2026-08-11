@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  # The PL/SQL suite is the one that matters most, so CI runs a real Oracle
+  # rather than mocking the thing under test. The XE container takes a couple of
+  # minutes to come up; the health check waits it out.
+  database:
+    name: PL/SQL business rules
+    runs-on: ubuntu-latest
+
+    services:
+      oracle:
+        image: gvenzl/oracle-xe:21-slim
+        env:
+          ORACLE_PASSWORD: OraclePw1
+          APP_USER: tutoring
+          APP_USER_PASSWORD: TutorPw1
+        ports:
+          - 1521:1521
+        options: >-
+          --health-cmd healthcheck.sh
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 40
+          --health-start-period 120s
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Locate the Oracle service container
+        run: |
+          # The db scripts run sqlplus inside the container. Service containers
+          # get a generated name, so find it by image rather than guessing.
+          name="$(docker ps --filter "ancestor=gvenzl/oracle-xe:21-slim" \
+                            --format '{{.Names}}' | head -n1)"
+          if [ -z "$name" ]; then
+            echo "Could not find the Oracle service container." >&2
+            docker ps
+            exit 1
+          fi
+          echo "ORACLE_CONTAINER=$name" >> "$GITHUB_ENV"
+          echo "Using container: $name"
+
+      - name: Copy the scripts into the container
+        run: |
+          # docker-compose mounts ./ at /db locally; a service container has no
+          # such mount, so copy the directory in instead.
+          docker cp db "$ORACLE_CONTAINER:/db"
+
+      - name: Install schema and packages
+        run: |
+          chmod +x db/*.sh
+          ./db/install.sh
+
+      - name: Run the business rule test suite
+        run: ./db/run_tests.sh
+
+      - name: Run the concurrency suite
+        run: ./db/run_concurrency.sh
+
+  build:
+    name: Build and test .NET
+    runs-on: ubuntu-latest
+
+    services:
+      oracle:
+        image: gvenzl/oracle-xe:21-slim
+        env:
+          ORACLE_PASSWORD: OraclePw1
+          APP_USER: tutoring
+          APP_USER_PASSWORD: TutorPw1
+        ports:
+          - 1521:1521
+        options: >-
+          --health-cmd healthcheck.sh
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 40
+          --health-start-period 120s
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Prepare the database for the integration tests
+        run: |
+          name="$(docker ps --filter "ancestor=gvenzl/oracle-xe:21-slim" \
+                            --format '{{.Names}}' | head -n1)"
+          echo "ORACLE_CONTAINER=$name" >> "$GITHUB_ENV"
+          docker cp db "$name:/db"
+          chmod +x db/*.sh
+          ORACLE_CONTAINER="$name" ./db/install.sh
+
+      - name: Restore
+        run: dotnet restore src/TutoringOps.sln
+
+      - name: Build
+        run: dotnet build src/TutoringOps.sln --configuration Release --no-restore
+
+      # The integration tests skip themselves when Oracle is unreachable, so a
+      # failure here is a real failure rather than a missing dependency.
+      - name: Test
+        run: dotnet test src/TutoringOps.sln --configuration Release --no-build --verbosity normal

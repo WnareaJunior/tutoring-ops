@@ -1,0 +1,36 @@
+@{
+    var isParentPage = (Context.Request.Path.Value ?? string.Empty)
+        .StartsWith("/Status", StringComparison.OrdinalIgnoreCase);
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] &middot; Tutoring Operations</title>
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body>
+    <header class="site-header">
+        <a class="brand" asp-page="/Index">SAT Tutoring Ops</a>
+        @if (!isParentPage)
+        {
+            <nav>
+                <a asp-page="/Schedule">Schedule</a>
+                <a asp-page="/Students">Students</a>
+                <a asp-page="/Status">Parent view</a>
+            </nav>
+        }
+    </header>
+
+    <main>
+        @RenderBody()
+    </main>
+
+    <footer class="site-footer">
+        Business rules live in Oracle PL/SQL. This page only asks.
+    </footer>
+
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

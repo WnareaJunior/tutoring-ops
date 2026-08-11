@@ -1,0 +1,42 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Home";
+}
+
+<h1>Tutoring operations</h1>
+<p class="subtitle">
+    Scheduling and billing for the tutoring business. Every rule below is
+    enforced in Oracle PL/SQL; these pages only ask and display the answer.
+</p>
+
+<div class="card">
+    <h2 style="margin-top:0">Where things are</h2>
+    <table>
+        <tbody>
+            <tr>
+                <td><a asp-page="/Schedule">Schedule</a></td>
+                <td class="muted">The week's sessions. Book, confirm, complete, cancel.</td>
+            </tr>
+            <tr>
+                <td><a asp-page="/Students">Students</a></td>
+                <td class="muted">Roster, hour balances, and selling packages.</td>
+            </tr>
+            <tr>
+                <td><a asp-page="/Status">Parent view</a></td>
+                <td class="muted">What a family sees with their access code.</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="card">
+    <h2 style="margin-top:0">The rules, in one place</h2>
+    <ul class="muted">
+        <li>Hours are reserved when a session is booked, not when it is taught.</li>
+        <li>Cancelling more than 24 hours ahead returns the hours; inside that window they are charged.</li>
+        <li>The tutor cannot be double booked, even by two people clicking at once.</li>
+        <li>Hours come off the oldest package first.</li>
+        <li>A completed session can never be walked back to cancelled.</li>
+    </ul>
+</div>

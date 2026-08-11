@@ -1,0 +1,150 @@
+@page
+@model StatusModel
+@{
+    ViewData["Title"] = "Status";
+    var d = Model.Dashboard;
+    var es = Model.IsSpanish;
+}
+
+@if (d is null)
+{
+    <h1>Your sessions</h1>
+    <p class="subtitle">Enter the code from your welcome message.</p>
+
+    @* Plain 'if': this sits directly in the enclosing code block, not inside
+       an element, so no '@' transition is needed. *@
+    if (Model.ErrorMessage is not null)
+    {
+        <div class="alert error">@Model.ErrorMessage</div>
+    }
+
+    <div class="card" style="max-width:420px">
+        <form method="post">
+            <div class="field">
+                <label asp-for="AccessCode">Access code</label>
+                <input asp-for="AccessCode" autocomplete="off" autocapitalize="characters"
+                       placeholder="ABCD2345" required />
+            </div>
+            <p></p>
+            <button type="submit">View my sessions</button>
+        </form>
+    </div>
+}
+else
+{
+    <h1>@d.FullName</h1>
+    <p class="subtitle">
+        @(es ? "Actualizado" : "Updated")
+        @d.LastUpdatedUtc.ToLocalTime().ToString("d MMM HH:mm")
+        <span class="muted">· @Model.DataSource</span>
+    </p>
+
+    <div class="card">
+        <div class="metrics">
+            <div class="metric">
+                <div class="value">@d.HoursRemaining.ToString("0.##")</div>
+                <div class="label">@(es ? "Horas restantes" : "Hours remaining")</div>
+            </div>
+            <div class="metric">
+                <div class="value">@d.UpcomingSessions.Count</div>
+                <div class="label">@(es ? "Clases programadas" : "Upcoming sessions")</div>
+            </div>
+            <div class="metric">
+                <div class="value">@d.SessionsCompleted</div>
+                <div class="label">@(es ? "Clases completadas" : "Sessions completed")</div>
+            </div>
+        </div>
+
+        @if (d.HoursRemaining < 2)
+        {
+            <p class="muted" style="margin-bottom:0">
+                @(es
+                    ? "Quedan pocas horas. Escríbame para añadir más."
+                    : "Running low on hours. Message me to add more.")
+            </p>
+        }
+    </div>
+
+    <h2>@(es ? "Próximas clases" : "Upcoming sessions")</h2>
+    <div class="card">
+        @if (d.UpcomingSessions.Count == 0)
+        {
+            <p class="muted" style="margin:0">
+                @(es ? "No hay clases programadas." : "Nothing booked at the moment.")
+            </p>
+        }
+        else
+        {
+            <table>
+                <thead>
+                    <tr>
+                        <th>@(es ? "Fecha" : "Date")</th>
+                        <th>@(es ? "Hora" : "Time")</th>
+                        <th>@(es ? "Duración" : "Length")</th>
+                        <th>@(es ? "Estado" : "Status")</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var session in d.UpcomingSessions)
+                {
+                    <tr>
+                        <td>@session.StartTime.ToString("dddd d MMMM")</td>
+                        <td>@session.StartTime.ToString("HH:mm")–@session.EndTime.ToString("HH:mm")</td>
+                        <td>@session.DurationMinutes min</td>
+                        <td>
+                            @if (session.Status == "REQUESTED")
+                            {
+                                <span class="pill">@(es ? "pendiente" : "requested")</span>
+                            }
+                            else
+                            {
+                                <span class="pill">@(es ? "confirmada" : "confirmed")</span>
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        }
+    </div>
+
+    <h2>@(es ? "Pagos recientes" : "Recent payments")</h2>
+    <div class="card">
+        @if (d.RecentPayments.Count == 0)
+        {
+            <p class="muted" style="margin:0">@(es ? "Sin pagos registrados." : "No payments recorded.")</p>
+        }
+        else
+        {
+            <table>
+                <thead>
+                    <tr>
+                        <th>@(es ? "Fecha" : "Date")</th>
+                        <th>@(es ? "Importe" : "Amount")</th>
+                        <th>@(es ? "Método" : "Method")</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var payment in d.RecentPayments)
+                {
+                    <tr>
+                        <td>@payment.PaidDate.ToString("d MMM yyyy")</td>
+                        <td>@payment.Amount.ToString("C0")</td>
+                        <td>@payment.Method</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        }
+    </div>
+
+    <form method="post" asp-page-handler="SignOut">
+        <button class="secondary" type="submit">@(es ? "Salir" : "Sign out")</button>
+    </form>
+
+    <p class="muted">
+        @(es
+            ? "Para cancelar, avise con más de 24 horas de antelación."
+            : "To cancel, please give more than 24 hours' notice.")
+    </p>
+}

@@ -1,0 +1,34 @@
+# Local Oracle XE 21c for development.
+#
+#   docker compose up -d
+#   ./install.sh          # once the healthcheck reports healthy
+#
+# The gvenzl image creates APP_USER inside the XEPDB1 pluggable database on first
+# boot, which is why nothing in this project is ever built in SYSTEM.
+services:
+  oracle:
+    image: gvenzl/oracle-xe:21-slim
+    container_name: tutoring-oracle
+    ports:
+      - "1521:1521"
+    environment:
+      # SYS/SYSTEM password. Local development only -- never used by the app.
+      ORACLE_PASSWORD: ${ORACLE_SYS_PASSWORD:-OraclePw1}
+      # The application schema. All objects in db/migrations belong to this user.
+      APP_USER: ${ORACLE_APP_USER:-tutoring}
+      APP_USER_PASSWORD: ${ORACLE_APP_PASSWORD:-TutorPw1}
+    volumes:
+      - oracle-data:/opt/oracle/oradata
+      # The scripts run through the container's own sqlplus, so the repo has to
+      # be visible inside it. Read-only: nothing here writes to the mount.
+      - ./:/db:ro
+    healthcheck:
+      # The image ships this script; it returns 0 only once the DB accepts logins.
+      test: ["CMD", "healthcheck.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 120s
+
+volumes:
+  oracle-data:

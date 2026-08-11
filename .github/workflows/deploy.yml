@@ -1,0 +1,107 @@
+name: Deploy to Azure
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Deploys the three things that live in Azure. Oracle is not one of them -- it
+# stays on the WSL box and the API reaches it over a tunnel, because Oracle in
+# Azure costs real money and would not make anything here more true.
+env:
+  DOTNET_VERSION: "8.0.x"
+
+jobs:
+  build:
+    name: Build and publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore src/TutoringOps.sln
+
+      - name: Publish API
+        run: >-
+          dotnet publish src/TutoringOps.Api/TutoringOps.Api.csproj
+          --configuration Release --no-restore --output ./publish/api
+
+      - name: Publish UI
+        run: >-
+          dotnet publish src/TutoringOps.Web/TutoringOps.Web.csproj
+          --configuration Release --no-restore --output ./publish/web
+
+      - name: Publish Functions
+        run: >-
+          dotnet publish src/TutoringOps.Functions/TutoringOps.Functions.csproj
+          --configuration Release --no-restore --output ./publish/functions
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: publish
+          path: ./publish
+          retention-days: 5
+
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    needs: build
+    # A deployment environment gives somewhere to require a manual approval
+    # later without changing this file.
+    environment: production
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: publish
+          path: ./publish
+
+      # AZURE_CREDENTIALS comes from:
+      #   az ad sp create-for-rbac --name tutoring-ops-deploy \
+      #     --role contributor --scopes /subscriptions/<id>/resourceGroups/<rg> --sdk-auth
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy API
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ secrets.AZURE_API_APP_NAME }}
+          package: ./publish/api
+
+      - name: Deploy UI
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ secrets.AZURE_UI_APP_NAME }}
+          package: ./publish/web
+
+      - name: Deploy Functions
+        uses: Azure/functions-action@v1
+        with:
+          app-name: ${{ secrets.AZURE_FUNCTION_APP_NAME }}
+          package: ./publish/functions
+
+      - name: Smoke test
+        run: |
+          # Liveness only. /health/ready needs Oracle, and the tunnel is not
+          # guaranteed to be up from a GitHub runner's point of view.
+          url="https://${{ secrets.AZURE_API_APP_NAME }}.azurewebsites.net/health"
+          for attempt in 1 2 3 4 5; do
+            if curl -fsS --max-time 20 "$url"; then
+              echo "API is responding."
+              exit 0
+            fi
+            echo "Attempt $attempt failed; waiting for the app to warm up."
+            sleep 15
+          done
+          echo "API did not respond after deployment." >&2
+          exit 1
+
+      - name: Log out
+        if: always()
+        run: az logout || true

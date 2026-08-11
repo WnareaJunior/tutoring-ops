@@ -1,0 +1,28 @@
+{
+  "//": "Copy to local.settings.json and fill in. That file is gitignored.",
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+
+    "//serviceBus": "Namespace connection string. Standard tier -- topics need it.",
+    "ServiceBusConnection": "Endpoint=sb://<namespace>.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=<key>",
+    "ServiceBusTopicName": "session-notifications",
+    "ServiceBusRemindersSubscription": "reminders",
+    "ServiceBusBillingSubscription": "billing-updates",
+
+    "//api": "Where the API is reachable from wherever the functions run.",
+    "TutoringApiBaseUrl": "http://localhost:5080/",
+    "TutoringApiOpsKey": "local-dev-key",
+
+    "//cosmos": "Leave CosmosConnectionString empty to log instead of writing.",
+    "CosmosConnectionString": "",
+    "CosmosDatabaseName": "tutoring",
+    "CosmosContainerName": "student-dashboards",
+
+    "//sendgrid": "Leave SendGridApiKey empty to log emails instead of sending.",
+    "SendGridApiKey": "",
+    "SendGridFromAddress": "tutor@example.com",
+    "SendGridFromName": "SAT Tutoring"
+  }
+}

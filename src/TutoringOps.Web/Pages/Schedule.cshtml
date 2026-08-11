@@ -1,0 +1,153 @@
+@page
+@model ScheduleModel
+@{
+    ViewData["Title"] = "Schedule";
+    var today = DateOnly.FromDateTime(DateTime.Today);
+}
+
+<h1>Week of @Model.WeekStart.ToString("d MMMM yyyy")</h1>
+<p class="subtitle">
+    <a asp-page="/Schedule" asp-route-week="@Model.WeekStart.AddDays(-7).ToString("yyyy-MM-dd")">&larr; previous</a>
+    &nbsp;·&nbsp;
+    <a asp-page="/Schedule">this week</a>
+    &nbsp;·&nbsp;
+    <a asp-page="/Schedule" asp-route-week="@Model.WeekStart.AddDays(7).ToString("yyyy-MM-dd")">next &rarr;</a>
+</p>
+
+@if (Model.SuccessMessage is not null)
+{
+    <div class="alert ok">@Model.SuccessMessage</div>
+}
+@if (Model.ErrorMessage is not null)
+{
+    <div class="alert error">
+        @Model.ErrorMessage
+        @if (Model.ErrorCode is not null)
+        {
+            <br /><code>@Model.ErrorCode</code>
+        }
+    </div>
+}
+
+<div class="card">
+    <form method="post" asp-page-handler="Book">
+        <input type="hidden" asp-for="Week" />
+        <div class="row">
+            <div class="field">
+                <label asp-for="Booking.StudentId">Student</label>
+                <select asp-for="Booking.StudentId">
+                    <option value="0">Choose…</option>
+                    @foreach (var student in Model.Students)
+                    {
+                        <option value="@student.StudentId">
+                            @student.FullName (@student.HoursRemaining.ToString("0.##") h)
+                        </option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label asp-for="Booking.Date">Date</label>
+                <input asp-for="Booking.Date" type="date" value="@today.ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="field">
+                <label asp-for="Booking.Hour">Start</label>
+                <select asp-for="Booking.Hour">
+                    @foreach (var hour in Model.Hours)
+                    {
+                        <option value="@hour">@hour.ToString("00"):00</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label asp-for="Booking.Minute">Minutes past</label>
+                <select asp-for="Booking.Minute">
+                    <option value="0">:00</option>
+                    <option value="15">:15</option>
+                    <option value="30">:30</option>
+                    <option value="45">:45</option>
+                </select>
+            </div>
+            <div class="field">
+                <label asp-for="Booking.DurationMinutes">Length</label>
+                <select asp-for="Booking.DurationMinutes">
+                    <option value="30">30 min</option>
+                    <option value="45">45 min</option>
+                    <option value="60" selected>60 min</option>
+                    <option value="90">90 min</option>
+                    <option value="120">120 min</option>
+                </select>
+            </div>
+            <div class="field" style="flex:1 1 220px">
+                <label asp-for="Booking.Notes">Notes</label>
+                <input asp-for="Booking.Notes" placeholder="Reading section, practice test…" />
+            </div>
+            <div class="field">
+                <label>&nbsp;</label>
+                <button type="submit">Book</button>
+            </div>
+        </div>
+    </form>
+    <p class="muted" style="margin-bottom:0">
+        Mon–Sat, 08:00–21:00. A session must finish before closing, and the hours
+        come off the package the moment it is booked.
+    </p>
+</div>
+
+<div class="calendar">
+    <div class="head"></div>
+    @foreach (var day in Model.Days)
+    {
+        <div class="head @(day == today ? "today" : "")">
+            @day.ToString("ddd")
+            <small>@day.ToString("d MMM")</small>
+        </div>
+    }
+
+    @foreach (var hour in Model.Hours)
+    {
+        <div class="hour">@hour.ToString("00"):00</div>
+
+        @* No '@' here: after the element above closes we are back in C# code
+           context, where a nested statement is written plainly. *@
+        foreach (var day in Model.Days)
+        {
+            <div class="@(day == today ? "today" : "")">
+                @foreach (var session in Model.SessionsAt(day, hour))
+                {
+                    var cssClass = session.Status switch
+                    {
+                        "REQUESTED" => "chip requested",
+                        "COMPLETED" => "chip completed",
+                        _ => "chip"
+                    };
+
+                    <div class="@cssClass">
+                        <span class="who">@session.StudentName</span><br />
+                        @session.StartTime.ToString("HH:mm")–@session.EndTime.ToString("HH:mm")
+                        @if (session.Status == "REQUESTED")
+                        {
+                            <span class="pill">requested</span>
+                        }
+
+                        @if (session.Status != "COMPLETED")
+                        {
+                            <form method="post" style="display:inline">
+                                <input type="hidden" name="sessionId" value="@session.SessionId" />
+                                <input type="hidden" asp-for="Week" />
+                                @if (session.Status == "REQUESTED")
+                                {
+                                    <button class="link" type="submit" asp-page-handler="Confirm">confirm</button>
+                                }
+                                else
+                                {
+                                    <button class="link" type="submit" asp-page-handler="Complete">complete</button>
+                                }
+                                <button class="link" type="submit" asp-page-handler="Cancel">cancel</button>
+                            </form>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    }
+</div>
