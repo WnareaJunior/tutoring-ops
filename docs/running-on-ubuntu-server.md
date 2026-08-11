@@ -73,6 +73,11 @@ git remote -v
 
 ### Notes on the key
 
+**Do the same on the laptop, with its own key.** One key per machine, never a
+copy of the same private key on both — that way losing the laptop means
+revoking one key on GitHub rather than rotating access on every machine you
+own. The steps are identical; just generate and upload a second key.
+
 **If you gave the key a passphrase**, git will ask for it on every pull. Load it
 into an agent once per login instead:
 
@@ -80,6 +85,21 @@ into an agent once per login instead:
 eval "$(ssh-agent -s)"
 ssh-add ~/.ssh/id_ed25519
 ```
+
+To have it survive reboots so you are never asked again, add to `~/.ssh/config`:
+
+```
+Host github.com
+    AddKeysToAgent yes
+    IdentityFile ~/.ssh/id_ed25519
+    # macOS only -- remove this line on Linux, where it is an unknown option:
+    UseKeychain yes
+```
+
+On macOS, `ssh-add --apple-use-keychain ~/.ssh/id_ed25519` once stores the
+passphrase in the login keychain and it is never requested again. On Linux the
+desktop keyring normally handles it after the first unlock. On Windows, set the
+`ssh-agent` service to start automatically, then `ssh-add` once.
 
 For a service that pulls unattended, a passphrase you are never there to type is
 not protecting anything — either leave the key without one, or use a repo-scoped
