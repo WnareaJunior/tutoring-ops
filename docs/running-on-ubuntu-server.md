@@ -149,78 +149,138 @@ When it goes green, update the "Has it been run?" section of
 `docs/build-status.md`. That file is the claim-discipline record and it currently
 says nothing has been executed.
 
-## 3a. If the server is older hardware with a spinning disk
+## 3a. Put Docker on the Thunderbolt SSD
 
-A 2012 Intel Mac runs all of this fine — the CPU was never the bottleneck here.
-The mechanical drive is, and it is worth knowing what that looks like so you do
-not kill something that is working.
+A 2012 Intel Mac runs this fine — the CPU was never the bottleneck. Storage is,
+and if there is a Thunderbolt SSD attached then the answer is simply to put
+Docker's data on it and stop thinking about the internal drive.
 
-**What to expect, roughly:**
+Thunderbolt 1 on a 2012 Mac is 10 Gbps. A SATA SSD tops out around 550 MB/s, so
+the interface is nowhere near the limit — you get the SSD's full speed, and the
+timings below are the fast ones.
 
-| Step | SSD | 7200rpm disk |
+| Step | on the internal HDD | on the Thunderbolt SSD |
 |---|---|---|
-| `docker pull` of the image (~2GB) | 1–2 min | 5–10 min |
-| First boot: creating the database | 2–4 min | 15–30 min |
-| Later starts | ~30 s | 2–5 min |
-| `./run_tests.sh` | under a minute | 2–5 min |
-| `dotnet build` (first, cold NuGet) | 1–2 min | 5–15 min |
+| `docker pull` of the image (~2GB) | 5–10 min | 1–2 min |
+| First boot: creating the database | 15–30 min | 2–4 min |
+| Later starts | 2–5 min | ~30 s |
+| `./run_tests.sh` | 2–5 min | under a minute |
+| `dotnet build` (first, cold NuGet) | 5–15 min | 1–2 min |
 
-The timeouts in this project are already sized for the slow column: the compose
-healthcheck allows 15 minutes before it starts counting failures, and
-`verify.sh` waits up to 40 minutes while printing elapsed time every minute. It
-also bails immediately if the container actually dies, so a genuine failure
-still surfaces quickly rather than waiting out the full window.
+### First: check the filesystem
 
-**Do not interrupt the first boot.** A quiet terminal and a hung process look
-identical, and killing Oracle partway through creating the database leaves a
-volume that will never become healthy. If that happens, start clean:
-`docker compose down -v && docker compose up -d`.
-
-To watch it actually progressing rather than guessing:
+This is the step that decides whether any of it works. A drive that came from a
+Mac is formatted APFS or HFS+, and neither is usable here — Linux has no
+production-quality write support for APFS, and exFAT has no POSIX ownership at
+all, which Docker and Oracle both require.
 
 ```bash
-docker logs -f tutoring-oracle
+lsblk -o NAME,SIZE,FSTYPE,MOUNTPOINT,MODEL
 ```
 
-**Things that help and cost nothing:**
+If `FSTYPE` is `apfs`, `hfsplus` or `exfat`, it needs an ext4 filesystem. That
+is **destructive** — copy anything you care about off it first:
 
-- Do not run `dotnet build` while the database is being created. Both are
-  I/O-bound and on one spindle they halve each other's speed. `verify.sh` runs
-  them in sequence for this reason.
-- Mount with `noatime` so reads stop generating writes. In `/etc/fstab`, add
-  `noatime` to the options for `/`, then remount.
-- More RAM means a bigger Oracle SGA and a bigger page cache, which means fewer
-  trips to the disk. 2012 Macs take cheap DDR3; going from 4GB to 8 or 16 is
-  usually around £20 and helps more than it sounds like it should.
-- If the box has 4GB or less, prefer `zram` over a swap file. Swapping to a
-  mechanical disk under memory pressure is the one thing that will make this
-  feel genuinely unusable: `sudo apt-get install -y zram-config`.
+```bash
+sudo mkfs.ext4 -L tutoring-ssd /dev/sdX1     # check the device name twice
+```
 
-**The change that actually fixes it:** an SSD. You do not have to open the
-machine — a 2012 Mac mini or iMac has USB 3.0, and a cheap external SSD on USB 3
-is still several times faster than the internal drive for this workload. Point
-Docker at it and everything above moves to the fast column:
+If it is already `ext4`, skip straight on.
+
+### Mount it so it survives a reboot
+
+```bash
+sudo mkdir -p /mnt/ssd
+sudo blkid /dev/sdX1        # copy the UUID
+```
+
+Add to `/etc/fstab`:
+
+```
+UUID=<uuid>  /mnt/ssd  ext4  defaults,noatime,nofail,x-systemd.device-timeout=30  0  2
+```
+
+`nofail` means the machine still boots if the drive is unplugged, rather than
+dropping to an emergency shell over a missing external disk.
+
+### Then stop Docker silently falling back
+
+This is the part worth doing carefully. `nofail` lets the system boot without
+the SSD — and if Docker starts while `/mnt/ssd` is not mounted, it will happily
+create a brand new empty data-root at that path on the *internal* disk. Your
+containers and volumes are not gone, but Docker will behave as though they never
+existed, and the database will look empty for no visible reason.
+
+Tell systemd that Docker requires the mount:
+
+```bash
+sudo systemctl edit docker.service
+```
+
+Add:
+
+```ini
+[Unit]
+RequiresMountsFor=/mnt/ssd
+```
+
+Now Docker refuses to start without the SSD, which is a loud, obvious failure
+instead of a quiet wrong one.
+
+### Move the data
 
 ```bash
 sudo systemctl stop docker
 sudo mkdir -p /mnt/ssd/docker
 sudo rsync -aP /var/lib/docker/ /mnt/ssd/docker/
 printf '{\n  "data-root": "/mnt/ssd/docker"\n}\n' | sudo tee /etc/docker/daemon.json
+sudo systemctl daemon-reload
 sudo systemctl start docker
-docker info | grep "Docker Root Dir"
+
+docker info -f '{{.DockerRootDir}}'      # should print /mnt/ssd/docker
 ```
 
-(A 2012 Mac Pro is USB 2.0 only, so there the answer is an internal SATA SSD —
-which on that machine is a drive sled and about a minute of work.)
-
-**Thermals.** Twelve-year-old thermal paste plus a database doing sustained I/O
-is a combination worth keeping an eye on, since throttling shows up as
-mysterious slowness rather than an error:
+Once that reports the new path and your containers are visible, reclaim the
+space on the internal drive:
 
 ```bash
-sudo apt-get install -y lm-sensors && sudo sensors-detect --auto
-watch -n5 sensors
+sudo rm -rf /var/lib/docker.bak && sudo mv /var/lib/docker /var/lib/docker.bak
+# ... confirm everything still works, then:
+sudo rm -rf /var/lib/docker.bak
 ```
+
+`./scripts/bootstrap-ubuntu.sh --check` asks Docker where its root actually is,
+so after this it should report an SSD rather than a spinning disk.
+
+### Worth knowing
+
+- **Do not unplug it while Oracle is running.** Datafiles on a disk that
+  disappears mid-write is how you corrupt a database. Thunderbolt is stable
+  enough for this; a yanked cable is not.
+- **Put swap there too** if the box has 4GB or less. Swapping to the mechanical
+  drive is the one thing that will make this feel unusable, and swapping to an
+  SSD is merely unremarkable.
+- **The build too.** Keeping the repo and the NuGet cache on the SSD is worth it
+  for the same reason as Docker; the internal drive can end up doing nothing but
+  holding the OS.
+- **Thermals.** Twelve-year-old thermal paste plus sustained database I/O is
+  worth an eye, since throttling shows up as mysterious slowness rather than an
+  error: `sudo apt-get install -y lm-sensors && sudo sensors-detect --auto`,
+  then `watch -n5 sensors`.
+
+### If you end up on the internal drive after all
+
+The timeouts in this project are sized for that case anyway — the compose
+healthcheck allows 15 minutes before failures start counting, and `verify.sh`
+waits up to 40 while printing elapsed time every minute, bailing early only if
+the container actually dies.
+
+**Do not interrupt the first boot.** A quiet terminal and a hung process look
+identical, and killing Oracle partway through creating the database leaves a
+volume that never becomes healthy; the recovery is
+`docker compose down -v && docker compose up -d`. Watch it work with
+`docker logs -f tutoring-oracle`. And do not run `dotnet build` while the
+database is being created — on one spindle they halve each other.
 
 ## 4. Load demo data and start the apps
 

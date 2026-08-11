@@ -91,7 +91,14 @@ fi
 # The single biggest influence on how this feels. Creating the Oracle database
 # is random-I/O bound, so the difference between a spinning disk and an SSD is
 # the difference between a 20 minute first boot and a 3 minute one.
-STORAGE_PATH="/var/lib/docker"
+# Ask Docker where its root actually is rather than assuming /var/lib/docker.
+# If the data-root has been moved to an external SSD, the old directory often
+# still exists, and checking it would report the wrong disk entirely.
+STORAGE_PATH=""
+if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+    STORAGE_PATH="$(docker info -f '{{.DockerRootDir}}' 2>/dev/null || true)"
+fi
+[[ -n "$STORAGE_PATH" && -d "$STORAGE_PATH" ]] || STORAGE_PATH="/var/lib/docker"
 [[ -d "$STORAGE_PATH" ]] || STORAGE_PATH="/"
 
 ROTATIONAL="unknown"
