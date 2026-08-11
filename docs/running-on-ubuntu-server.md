@@ -86,20 +86,37 @@ eval "$(ssh-agent -s)"
 ssh-add ~/.ssh/id_ed25519
 ```
 
-To have it survive reboots so you are never asked again, add to `~/.ssh/config`:
+To have it survive reboots so you are never asked again, put this **in the file**
+`~/.ssh/config` — it is configuration, not shell commands. Run the whole block
+below as one paste and it writes itself:
 
-```
+```bash
+mkdir -p ~/.ssh && chmod 700 ~/.ssh
+
+if grep -q '^Host github.com' ~/.ssh/config 2>/dev/null; then
+    echo "github.com is already configured in ~/.ssh/config"
+else
+    cat >> ~/.ssh/config <<'EOF'
+
 Host github.com
     AddKeysToAgent yes
     IdentityFile ~/.ssh/id_ed25519
-    # macOS only -- remove this line on Linux, where it is an unknown option:
-    UseKeychain yes
+EOF
+    # macOS only. On Linux this is an unknown option and ssh will refuse to
+    # read the file at all, which looks like the key has stopped working.
+    [ "$(uname)" = "Darwin" ] && printf '    UseKeychain yes\n' >> ~/.ssh/config
+    chmod 600 ~/.ssh/config
+    echo "written"
+fi
 ```
 
-On macOS, `ssh-add --apple-use-keychain ~/.ssh/id_ed25519` once stores the
-passphrase in the login keychain and it is never requested again. On Linux the
-desktop keyring normally handles it after the first unlock. On Windows, set the
-`ssh-agent` service to start automatically, then `ssh-add` once.
+Then store the passphrase once, so it is never requested again:
+
+- **macOS:** `ssh-add --apple-use-keychain ~/.ssh/id_ed25519` (on macOS 11 and
+  earlier the flag is `-K`). It goes into the login keychain.
+- **Linux:** the desktop keyring normally handles it after the first unlock.
+- **Windows:** set the `ssh-agent` service to start automatically, then
+  `ssh-add` once.
 
 For a service that pulls unattended, a passphrase you are never there to type is
 not protecting anything — either leave the key without one, or use a repo-scoped
