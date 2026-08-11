@@ -220,13 +220,20 @@ CREATE OR REPLACE PACKAGE BODY PKG_BILLING AS
     INSERT INTO PACKAGE_LEDGER (PACKAGE_ID, SESSION_ID, ENTRY_TYPE, HOURS_DELTA)
     VALUES (p_package_id, NULL, 'PURCHASE', p_hours);
 
-    INSERT INTO PAYMENTS (
-      STUDENT_ID, PACKAGE_ID, AMOUNT, METHOD, APPLIED_FLAG, NOTES
-    ) VALUES (
-      p_student_id, p_package_id, p_amount, NVL(p_method,'ZELLE'), 'Y',
-      'Package purchase: ' || p_hours || ' hours'
-    )
-    RETURNING PAYMENT_ID INTO l_payment_id;
+    -- A comped package is a real thing -- makeup hours after a lesson the tutor
+    -- had to move -- and CK_PACKAGES_PRICE permits a price of zero. PAYMENTS
+    -- does not: CK_PAYMENTS_AMOUNT requires a positive amount, because a
+    -- payment of nothing is not a payment. So money changing hands is recorded
+    -- only when it actually did.
+    IF p_amount > 0 THEN
+      INSERT INTO PAYMENTS (
+        STUDENT_ID, PACKAGE_ID, AMOUNT, METHOD, APPLIED_FLAG, NOTES
+      ) VALUES (
+        p_student_id, p_package_id, p_amount, NVL(p_method,'ZELLE'), 'Y',
+        'Package purchase: ' || p_hours || ' hours'
+      )
+      RETURNING PAYMENT_ID INTO l_payment_id;
+    END IF;
 
     PKG_EVENTS.enqueue_package_event(p_package_id, PKG_EVENTS.c_evt_package_purchased);
 

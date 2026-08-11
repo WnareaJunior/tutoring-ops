@@ -205,6 +205,46 @@ END;
 /
 
 BEGIN
+  PKG_TEST.start_suite('billing: a comped package books but records no payment');
+
+  PKG_TEST.reset_data;
+
+  DECLARE
+    l_student  NUMBER;
+    l_package  NUMBER;
+    l_session  NUMBER;
+    l_result   VARCHAR2(40);
+    l_payments NUMBER;
+  BEGIN
+    l_student := PKG_TEST.new_student('Comped Hours');
+
+    -- Makeup hours after a lesson the tutor moved. PACKAGES.PRICE allows zero;
+    -- PAYMENTS.AMOUNT does not, so no payment row may be written.
+    PKG_BILLING.purchase_package(l_student, 2, 0, 'CASH', NULL, l_package, l_result);
+    PKG_TEST.assert_equals('comped purchase succeeds', 'OK', l_result);
+    PKG_TEST.assert_not_null('package created', l_package);
+    PKG_TEST.assert_equals('hours are usable', 2, PKG_BILLING.get_balance(l_student));
+
+    SELECT COUNT(*) INTO l_payments FROM PAYMENTS WHERE STUDENT_ID = l_student;
+    PKG_TEST.assert_equals('no payment recorded for a free package', 0, l_payments);
+
+    -- And the hours behave like any others.
+    PKG_SCHEDULING.book_session(l_student, PKG_TEST.slot(3, 10), 60, NULL, 1,
+                                l_session, l_result);
+    PKG_TEST.assert_equals('comped hours are bookable', 'OK', l_result);
+    PKG_TEST.assert_equals('balance drops normally', 1, PKG_BILLING.get_balance(l_student));
+
+    -- A negative price is still nonsense.
+    PKG_BILLING.purchase_package(l_student, 2, -5, 'CASH', NULL, l_package, l_result);
+    PKG_TEST.assert_equals('negative amount rejected', 'ERR_INVALID_INPUT', l_result);
+
+    PKG_TEST.assert_ledger_consistent('comped package');
+    COMMIT;
+  END;
+END;
+/
+
+BEGIN
   PKG_TEST.start_suite('billing: expired packages are not spendable');
 
   PKG_TEST.reset_data;
