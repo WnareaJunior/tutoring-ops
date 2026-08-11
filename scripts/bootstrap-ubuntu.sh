@@ -87,6 +87,73 @@ else
     bad "disk free on / is ${DISK_AVAIL_GB}GB -- not enough for the image and database"
 fi
 
+# --- storage type ------------------------------------------------------------
+# The single biggest influence on how this feels. Creating the Oracle database
+# is random-I/O bound, so the difference between a spinning disk and an SSD is
+# the difference between a 20 minute first boot and a 3 minute one.
+STORAGE_PATH="/var/lib/docker"
+[[ -d "$STORAGE_PATH" ]] || STORAGE_PATH="/"
+
+ROTATIONAL="unknown"
+DISK_MODEL=""
+DISK_DEV=""
+if command -v findmnt >/dev/null 2>&1 && command -v lsblk >/dev/null 2>&1; then
+    SRC="$(findmnt -no SOURCE --target "$STORAGE_PATH" 2>/dev/null || true)"
+    if [[ -b "$SRC" ]]; then
+        # PKNAME is the parent disk of a partition, and empty for a whole disk.
+        PARENT="$(lsblk -no PKNAME "$SRC" 2>/dev/null | head -n1 | tr -d ' ')"
+        [[ -z "$PARENT" ]] && PARENT="$(basename "$SRC")"
+        DISK_DEV="/dev/$PARENT"
+        if [[ -b "$DISK_DEV" ]]; then
+            ROTATIONAL="$(lsblk -no ROTA "$DISK_DEV" 2>/dev/null | head -n1 | tr -d ' ')"
+            DISK_MODEL="$(lsblk -no MODEL "$DISK_DEV" 2>/dev/null | head -n1 | sed 's/ *$//')"
+        fi
+    fi
+fi
+
+case "$ROTATIONAL" in
+    0)
+        ok "storage backing $STORAGE_PATH is an SSD${DISK_MODEL:+ ($DISK_MODEL)}"
+        ;;
+    1)
+        warn "storage backing $STORAGE_PATH is a spinning disk${DISK_MODEL:+ ($DISK_MODEL)}"
+        echo "         Expect first boot to take 15-30 minutes rather than 3, and the"
+        echo "         test suites to run several times slower. Nothing is broken;"
+        echo "         the timeouts in this project are already sized for it."
+        echo "         An SSD is the single highest-leverage change you can make here."
+        ;;
+    *)
+        warn "could not determine whether $STORAGE_PATH is on an SSD"
+        ;;
+esac
+
+# --- disk health -------------------------------------------------------------
+# A disk in a 2012 machine has had a long life. Worth knowing before a business
+# database goes on it, not after.
+if [[ -n "$DISK_DEV" ]]; then
+    if command -v smartctl >/dev/null 2>&1; then
+        SMART_OUT="$(sudo -n smartctl -H "$DISK_DEV" 2>/dev/null || true)"
+        if grep -qiE 'PASSED|OK' <<<"$SMART_OUT"; then
+            ok "SMART health check on $DISK_DEV passed"
+            HOURS="$(sudo -n smartctl -A "$DISK_DEV" 2>/dev/null \
+                     | awk '/Power_On_Hours/ {print $10; exit}')"
+            if [[ -n "${HOURS:-}" ]] && (( HOURS > 43800 )); then
+                warn "the drive reports ${HOURS} powered-on hours (over 5 years of runtime)"
+                echo "         Still passing, but back up anything you care about."
+            fi
+        elif grep -qiE 'FAILED' <<<"$SMART_OUT"; then
+            bad "SMART health check on $DISK_DEV FAILED -- the drive is dying"
+            echo "         Do not put a database on this disk. Replace it first."
+        else
+            warn "could not read SMART status for $DISK_DEV (try: sudo smartctl -H $DISK_DEV)"
+        fi
+    else
+        warn "smartmontools is not installed; drive health unknown"
+        echo "         On hardware this old it is worth 30 seconds:"
+        echo "           sudo apt-get install -y smartmontools && sudo smartctl -H $DISK_DEV"
+    fi
+fi
+
 # --- ports -------------------------------------------------------------------
 port_busy() {
     if command -v ss >/dev/null 2>&1; then
@@ -249,12 +316,18 @@ if [[ -n "${NEEDS_RELOGIN:-}" ]]; then
 EOF
 fi
 
-cat <<'EOF'
+if [[ "$ROTATIONAL" == "1" ]]; then
+    FIRST_BOOT="15-30 minutes on this disk -- do not interrupt it"
+else
+    FIRST_BOOT="2-4 minutes"
+fi
+
+cat <<EOF
 
   Next:
 
       cd db
-      docker compose up -d      # first boot creates the database, 2-4 minutes
+      docker compose up -d      # first boot creates the database, $FIRST_BOOT
       ./install.sh
       ./run_tests.sh
 

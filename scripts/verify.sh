@@ -96,15 +96,30 @@ else
 fi
 
 # The compose healthcheck is the authority on readiness; polling it beats
-# guessing with sleep.
-printf 'Waiting for the healthcheck'
-for _ in $(seq 1 90); do
+# guessing with sleep. The ceiling is 40 minutes because first boot on a
+# spinning disk genuinely can take that long -- see the note in
+# docker-compose.yml.
+WAIT_MINUTES="${ORACLE_WAIT_MINUTES:-40}"
+echo "Waiting for the healthcheck (up to ${WAIT_MINUTES}m; first boot on a spinning disk is slow)."
+WAITED=0
+for i in $(seq 1 $((WAIT_MINUTES * 6))); do
     health="$(docker inspect -f '{{.State.Health.Status}}' tutoring-oracle 2>/dev/null || echo unknown)"
     if [[ "$health" == "healthy" ]]; then
-        echo " healthy."
+        echo "  healthy after ${WAITED}m."
         break
     fi
-    printf '.'
+    # Bail early on a container that has actually died, rather than waiting out
+    # the full 40 minutes for something that is never coming back.
+    if [[ "$(docker inspect -f '{{.State.Running}}' tutoring-oracle 2>/dev/null)" != "true" ]]; then
+        echo
+        echo "The container stopped. Last logs:" >&2
+        docker logs --tail 40 tutoring-oracle >&2 || true
+        summary_and_exit 1 "$CURRENT_STAGE"
+    fi
+    if (( i % 6 == 0 )); then
+        WAITED=$((i / 6))
+        echo "  ${WAITED}m elapsed, status: $health"
+    fi
     sleep 10
 done
 

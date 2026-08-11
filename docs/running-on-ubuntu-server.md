@@ -149,6 +149,79 @@ When it goes green, update the "Has it been run?" section of
 `docs/build-status.md`. That file is the claim-discipline record and it currently
 says nothing has been executed.
 
+## 3a. If the server is older hardware with a spinning disk
+
+A 2012 Intel Mac runs all of this fine — the CPU was never the bottleneck here.
+The mechanical drive is, and it is worth knowing what that looks like so you do
+not kill something that is working.
+
+**What to expect, roughly:**
+
+| Step | SSD | 7200rpm disk |
+|---|---|---|
+| `docker pull` of the image (~2GB) | 1–2 min | 5–10 min |
+| First boot: creating the database | 2–4 min | 15–30 min |
+| Later starts | ~30 s | 2–5 min |
+| `./run_tests.sh` | under a minute | 2–5 min |
+| `dotnet build` (first, cold NuGet) | 1–2 min | 5–15 min |
+
+The timeouts in this project are already sized for the slow column: the compose
+healthcheck allows 15 minutes before it starts counting failures, and
+`verify.sh` waits up to 40 minutes while printing elapsed time every minute. It
+also bails immediately if the container actually dies, so a genuine failure
+still surfaces quickly rather than waiting out the full window.
+
+**Do not interrupt the first boot.** A quiet terminal and a hung process look
+identical, and killing Oracle partway through creating the database leaves a
+volume that will never become healthy. If that happens, start clean:
+`docker compose down -v && docker compose up -d`.
+
+To watch it actually progressing rather than guessing:
+
+```bash
+docker logs -f tutoring-oracle
+```
+
+**Things that help and cost nothing:**
+
+- Do not run `dotnet build` while the database is being created. Both are
+  I/O-bound and on one spindle they halve each other's speed. `verify.sh` runs
+  them in sequence for this reason.
+- Mount with `noatime` so reads stop generating writes. In `/etc/fstab`, add
+  `noatime` to the options for `/`, then remount.
+- More RAM means a bigger Oracle SGA and a bigger page cache, which means fewer
+  trips to the disk. 2012 Macs take cheap DDR3; going from 4GB to 8 or 16 is
+  usually around £20 and helps more than it sounds like it should.
+- If the box has 4GB or less, prefer `zram` over a swap file. Swapping to a
+  mechanical disk under memory pressure is the one thing that will make this
+  feel genuinely unusable: `sudo apt-get install -y zram-config`.
+
+**The change that actually fixes it:** an SSD. You do not have to open the
+machine — a 2012 Mac mini or iMac has USB 3.0, and a cheap external SSD on USB 3
+is still several times faster than the internal drive for this workload. Point
+Docker at it and everything above moves to the fast column:
+
+```bash
+sudo systemctl stop docker
+sudo mkdir -p /mnt/ssd/docker
+sudo rsync -aP /var/lib/docker/ /mnt/ssd/docker/
+printf '{\n  "data-root": "/mnt/ssd/docker"\n}\n' | sudo tee /etc/docker/daemon.json
+sudo systemctl start docker
+docker info | grep "Docker Root Dir"
+```
+
+(A 2012 Mac Pro is USB 2.0 only, so there the answer is an internal SATA SSD —
+which on that machine is a drive sled and about a minute of work.)
+
+**Thermals.** Twelve-year-old thermal paste plus a database doing sustained I/O
+is a combination worth keeping an eye on, since throttling shows up as
+mysterious slowness rather than an error:
+
+```bash
+sudo apt-get install -y lm-sensors && sudo sensors-detect --auto
+watch -n5 sensors
+```
+
 ## 4. Load demo data and start the apps
 
 ```bash
@@ -299,8 +372,13 @@ set, the user does not exist. Start over:
 login. `newgrp docker` fixes the current shell.
 
 **Oracle dies a few minutes into first boot** — almost always memory. Check
-`docker logs tutoring-oracle` and `free -h`. Adding 2GB of swap is enough to get
-through database creation on a 2GB box.
+`docker logs tutoring-oracle` and `free -h`. On a 2GB box, adding swap is enough
+to get through database creation, though on a mechanical disk prefer `zram` over
+a swap file (see §3a).
+
+**First boot seems to have hung** — on a spinning disk it has probably not.
+`docker logs -f tutoring-oracle` shows whether it is still working. See §3a for
+what the timings actually look like on that hardware.
 
 **Tests fail with `ORA-00942: table or view does not exist`** — the packages
 compiled against a schema that was not installed. Re-run `./db/install.sh`; it

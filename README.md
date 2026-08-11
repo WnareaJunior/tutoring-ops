@@ -64,7 +64,9 @@ On a fresh Ubuntu box, all of it in two commands:
 `bootstrap-ubuntu.sh --check` reports without changing anything. Two of its
 checks are hard blockers worth knowing about before you start: **Oracle XE is
 x86_64 only** (there is no arm64 image), and it needs **about 2GB of RAM** or it
-dies partway through creating the database.
+dies partway through creating the database. It also reports whether the storage
+is a spinning disk, which decides whether first boot takes three minutes or
+thirty — the timeouts here are sized for the slow case, so let it run.
 
 If the server is a separate machine from the one you are typing on,
 `docs/running-on-ubuntu-server.md` covers the SSH tunnels, systemd units and the

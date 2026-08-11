@@ -35,10 +35,16 @@ services:
     healthcheck:
       # The image ships this script; it returns 0 only once the DB accepts logins.
       test: ["CMD", "healthcheck.sh"]
-      interval: 10s
-      timeout: 5s
-      retries: 30
-      start_period: 120s
+      interval: 15s
+      timeout: 10s
+      # start_period is sized for a spinning disk. Creating the database is
+      # random-I/O bound, so a 7200rpm drive can take 20+ minutes on first boot
+      # where an SSD takes 3. Failures during start_period do not count against
+      # retries, so a generous value costs nothing on fast hardware -- and a
+      # container marked unhealthy while it is still legitimately working is a
+      # much more expensive mistake to debug.
+      retries: 40
+      start_period: 900s
 
 volumes:
   oracle-data:

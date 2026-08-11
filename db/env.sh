@@ -51,16 +51,26 @@ db_script() {
   fi
 }
 
+# Default is generous because creating the database is heavily random-I/O bound
+# and a spinning disk turns a 3 minute first boot into 20 or more. Waiting is
+# cheap; a script that gives up at minute five and reports a failure that was
+# only slowness is not. Override with ORACLE_WAIT_ATTEMPTS or an argument.
 db_wait_for_ready() {
-  local attempts="${1:-60}"
-  echo "Waiting for Oracle to accept connections..."
+  local attempts="${1:-${ORACLE_WAIT_ATTEMPTS:-240}}"
+  echo "Waiting for Oracle to accept connections (up to $((attempts * 5 / 60)) minutes)..."
   for ((i = 1; i <= attempts; i++)); do
     if printf 'SELECT 1 FROM DUAL;\nexit\n' | db_exec >/dev/null 2>&1; then
       echo "Oracle is ready (mode: $DB_MODE)."
       return 0
     fi
+    # A silent script and a hung script look identical, so say something
+    # every minute rather than leaving you guessing.
+    if (( i % 12 == 0 )); then
+      echo "  still waiting, $((i * 5 / 60))m elapsed"
+    fi
     sleep 5
   done
   echo "Oracle did not become ready after $((attempts * 5))s." >&2
+  echo "Check: docker logs --tail 50 tutoring-oracle" >&2
   return 1
 }
