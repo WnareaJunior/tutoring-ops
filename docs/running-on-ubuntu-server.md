@@ -444,6 +444,25 @@ if you are running `docker run` by hand, pass `--shm-size=1g`.
 **`no matching manifest for linux/arm64`** — the architecture blocker above.
 Oracle XE is x86_64 only.
 
+**The image pull dies partway with `connection reset by peer`** — look at the
+addresses in the error. If they are IPv6 (`2600:...`), the transfer is going out
+over an IPv6 path that cannot carry it, usually a broken path-MTU. A 2GB pull
+gives it plenty of opportunity to fail where ordinary browsing never would.
+
+Retry once first, since CloudFront resets are also just transient and Docker
+resumes from the layers it already has. If it keeps happening, tell glibc to
+prefer IPv4 — the daemon uses the system resolver, so this covers it:
+
+```bash
+echo 'precedence ::ffff:0:0/96  100' | sudo tee -a /etc/gai.conf
+sudo systemctl restart docker
+```
+
+That line is present but commented out in the stock `/etc/gai.conf`; appending
+it turns IPv4 preference on. It changes resolution order only, and leaves IPv6
+working for anything that needs it. `verify.sh` retries the pull five times with
+backoff before giving up, so a flaky link usually gets through on its own.
+
 **Container is healthy but `install.sh` cannot connect** — the app user is
 created on *first* boot only. If the volume was created before `APP_USER` was
 set, the user does not exist. Start over:

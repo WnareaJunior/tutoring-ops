@@ -88,6 +88,42 @@ CURRENT_STAGE="oracle container"
 stage "Starting Oracle"
 cd "$HERE/db"
 
+ORACLE_IMAGE="gvenzl/oracle-xe:21-slim"
+
+# Pull as its own step, with retries. The image is around 2GB and a single
+# reset partway through fails the whole `up`. Docker keeps the layers it has
+# already completed, so a retry resumes rather than starting over -- which makes
+# retrying much cheaper than it looks.
+if ! docker image inspect "$ORACLE_IMAGE" >/dev/null 2>&1; then
+    echo "Pulling $ORACLE_IMAGE (~2GB). Completed layers are kept between attempts."
+    PULL_OK=0
+    for attempt in 1 2 3 4 5; do
+        if docker compose pull; then
+            PULL_OK=1
+            break
+        fi
+        echo "  attempt $attempt failed; retrying in $((attempt * 10))s"
+        sleep $((attempt * 10))
+    done
+
+    if (( PULL_OK == 0 )); then
+        cat >&2 <<'EOF'
+
+Could not pull the image after 5 attempts.
+
+If the errors showed IPv6 addresses and "connection reset by peer", the pull is
+going out over a broken or MTU-limited IPv6 path. Preferring IPv4 usually fixes
+it outright:
+
+    echo 'precedence ::ffff:0:0/96  100' | sudo tee -a /etc/gai.conf
+    sudo systemctl restart docker
+
+See docs/running-on-ubuntu-server.md for the rest.
+EOF
+        summary_and_exit 1 "$CURRENT_STAGE"
+    fi
+fi
+
 if [[ "$(docker inspect -f '{{.State.Running}}' tutoring-oracle 2>/dev/null)" == "true" ]]; then
     echo "Container already running."
 else
