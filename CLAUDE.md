@@ -39,7 +39,32 @@ it run.
   service `XEPDB1`, password in `db/docker-compose.yml` (local dev only).
 - Reached from a laptop over SSH port forwards. Nothing is exposed publicly.
 
-## Commands
+## Where you are running
+
+**If this session is on a laptop and the server is remote:** nothing here can be
+executed locally. There is no Oracle and no database on the laptop. Edit files
+here, then run them there with `scripts/remote.sh`, which rsyncs the working
+tree before every command so what runs is always what you just edited.
+
+```bash
+./scripts/remote.sh install          # sync, then db/install.sh -- the main SQL loop
+./scripts/remote.sh tests            # sync, then the business rule suite
+./scripts/remote.sh concurrency      # sync, then the races
+./scripts/remote.sh run '<command>'  # sync, then anything, in the repo directory
+./scripts/remote.sh verify           # the full run -- DETACHED, poll it
+./scripts/remote.sh tail verify      # last 60 lines, returns immediately
+./scripts/remote.sh status verify    # still going?
+./scripts/remote.sh logs             # docker logs from the Oracle container
+```
+
+`verify` and `build` run detached in tmux on the server and tee to a log, so a
+20 minute job cannot be killed by a dropped connection or a tool timeout. Start
+one, then poll with `tail` — do not wait on it synchronously.
+
+Do not edit files over SSH with `sed` or heredocs. Edit them locally with the
+normal file tools; `remote.sh` gets them across.
+
+**If this session is on the server itself:** run the scripts directly.
 
 ```bash
 ./scripts/verify.sh              # everything: container, schema, both suites, build, tests
@@ -55,8 +80,9 @@ cd db
 docker logs -f tutoring-oracle   # watch first boot; it is slow, not hung
 ```
 
-Iterate on SQL with `./install.sh && ./run_tests.sh` — it is much faster than a
-full `verify.sh` while fixing compile errors.
+Either way: iterate with install-then-tests, not with `verify.sh`. The full run
+rebuilds .NET and re-runs everything, which is minutes of waiting for feedback
+you do not need while fixing a PL/SQL syntax error.
 
 ## Rules that are not up for negotiation
 
