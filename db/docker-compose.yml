@@ -1,4 +1,4 @@
-# Local Oracle XE 21c for development.
+# Oracle XE 21c for development.
 #
 #   docker compose up -d
 #   ./install.sh          # once the healthcheck reports healthy
@@ -10,7 +10,17 @@ services:
     image: gvenzl/oracle-xe:21-slim
     container_name: tutoring-oracle
     ports:
-      - "1521:1521"
+      # Bound to loopback on purpose. This runs on a server, and "1521:1521"
+      # would publish it on every interface -- an Oracle listener with a
+      # development password, reachable by anything that can route to the box.
+      # Reach it from a laptop with an SSH tunnel instead:
+      #   ssh -N -L 1521:localhost:1521 you@server
+      # Override only if you know what is in front of it:
+      #   ORACLE_BIND=0.0.0.0 docker compose up -d
+      - "${ORACLE_BIND:-127.0.0.1}:1521:1521"
+    # Docker's default /dev/shm is 64MB. Oracle sizes its SGA against it and
+    # fails to start with ORA-00845 when it is that small.
+    shm_size: 1gb
     environment:
       # SYS/SYSTEM password. Local development only -- never used by the app.
       ORACLE_PASSWORD: ${ORACLE_SYS_PASSWORD:-OraclePw1}

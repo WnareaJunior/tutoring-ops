@@ -48,10 +48,29 @@ database.** Everything above it asks and displays.
 | `src/TutoringOps.Functions/` | Isolated-worker Function App: reminders, projection, nightly sweep |
 | `src/TutoringOps.Web/` | Razor Pages: admin calendar and the parent status page |
 | `infra/provision.sh` | Azure resources via the `az` CLI |
+| `scripts/` | Ubuntu bootstrap and the one-command verify run |
 | `.github/workflows/` | CI (with a real Oracle) and deployment |
-| `docs/` | Design decisions, and an honest map of what is actually built |
+| `docs/` | Design decisions, server setup, and an honest map of what is built |
 
 ## Getting it running
+
+On a fresh Ubuntu box, all of it in two commands:
+
+```bash
+./scripts/bootstrap-ubuntu.sh   # preflight, then Docker and the .NET 8 SDK
+./scripts/verify.sh             # Oracle, schema, both SQL suites, build, tests
+```
+
+`bootstrap-ubuntu.sh --check` reports without changing anything. Two of its
+checks are hard blockers worth knowing about before you start: **Oracle XE is
+x86_64 only** (there is no arm64 image), and it needs **about 2GB of RAM** or it
+dies partway through creating the database.
+
+If the server is a separate machine from the one you are typing on,
+`docs/running-on-ubuntu-server.md` covers the SSH tunnels, systemd units and the
+Tailscale step that lets a deployed Azure API reach the database.
+
+The steps individually:
 
 ### 1. Oracle
 
@@ -63,6 +82,9 @@ docker compose up -d          # Oracle XE 21c; first boot takes a couple of minu
 ./run_concurrency.sh          # the concurrency suite
 ./seed.sh                     # optional demo data
 ```
+
+The listener is bound to `127.0.0.1` on purpose — see the note in
+`docker-compose.yml` before changing it.
 
 The container creates an application schema (`tutoring`) inside `XEPDB1`.
 Nothing is ever built in `SYSTEM`.
@@ -175,5 +197,7 @@ reason rather than parsing prose.
 
 - `docs/design-decisions.md` — the choices worth defending, including where this
   departs from the original plan and why
+- `docs/running-on-ubuntu-server.md` — laptop-to-server setup, port forwarding,
+  systemd, and the troubleshooting for Oracle's specific failure modes
 - `docs/build-status.md` — exactly which parts have been executed and which have
   not, kept honest on purpose

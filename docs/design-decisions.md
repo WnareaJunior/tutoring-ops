@@ -174,7 +174,7 @@ protecting a list of lesson times.
 The codes deliberately exclude `0/O` and `1/I/L`, because they get read aloud
 over the phone.
 
-## 9. Oracle stays on the WSL box
+## 9. Oracle stays self-hosted, on the Ubuntu server
 
 The plan offered a choice. This is the decision: **Oracle is not deployed to
 Azure.** `infra/provision.sh` provisions everything else.
@@ -183,6 +183,15 @@ Oracle XE in Azure means a VM, a disk and an ongoing bill for a database serving
 a handful of bookings a day. The deployed API reaches it over a tunnel
 (Tailscale or a dev tunnel), and the connection string is set by hand on the Web
 App rather than committed.
+
+The plan said WSL; the host is an Ubuntu server, which is strictly better for
+this. It does not sleep, so the parent status page and the nightly reminder
+sweep keep working when the laptop is shut, and a demo does not depend on a lid
+being open. Setup is in `running-on-ubuntu-server.md`.
+
+The listener is bound to loopback and reached over SSH or Tailscale, never
+published. An Oracle port open to the internet with a development password is
+found by scanners in hours, and "it is only a side project" is not a mitigation.
 
 This is worth saying out loud in an interview rather than hiding: the resume
 line is "built with Oracle and PL/SQL", which is true either way. Paying to run

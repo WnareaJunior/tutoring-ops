@@ -139,7 +139,7 @@ movement), `TUTORS` (the lock target for double-booking), `PKG_EVENTS`,
 | App Service plan B1 | yes | `infra/provision.sh` |
 | API and UI as Web Apps | yes | same |
 | Function App on Consumption | yes | same |
-| Oracle stays on WSL, reached by tunnel | yes, decided | `design-decisions.md` §9 |
+| Oracle stays self-hosted, reached by tunnel | yes, decided | `design-decisions.md` §9; host is the Ubuntu server |
 | GitHub Actions deploying on push to main | yes | `.github/workflows/deploy.yml` |
 | Settings and secrets in Azure config | yes | `provision.sh`; nothing secret is committed |
 | **Stretch:** APIM | not built | — |

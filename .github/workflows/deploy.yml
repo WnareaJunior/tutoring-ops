@@ -6,8 +6,9 @@ on:
   workflow_dispatch:
 
 # Deploys the three things that live in Azure. Oracle is not one of them -- it
-# stays on the WSL box and the API reaches it over a tunnel, because Oracle in
-# Azure costs real money and would not make anything here more true.
+# stays self-hosted on the Ubuntu server and the API reaches it over a tunnel,
+# because Oracle in Azure costs real money and would not make anything here
+# more true.
 env:
   DOTNET_VERSION: "8.0.x"
 
