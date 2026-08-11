@@ -23,11 +23,88 @@ exposed.
 
 ## 1. Get the code onto the server
 
+GitHub stopped accepting passwords over HTTPS in August 2021, so cloning needs
+an SSH key (or a personal access token — a key is less to manage on a machine
+that will be pulling unattended).
+
+**First time on this machine only:**
+
 ```bash
 ssh you@server
-git clone https://github.com/WnareaJunior/tutoring-ops.git
+
+ssh-keygen -t ed25519 -C "you@example.com"    # Enter for the default path
+cat ~/.ssh/id_ed25519.pub
+```
+
+Paste that public key into GitHub under **Settings → SSH and GPG keys → New SSH
+key**, type *Authentication key*. The public key (`.pub`) is the one that leaves
+the server; the private key never does.
+
+Then check it works:
+
+```bash
+ssh -T git@github.com
+```
+
+The first connection asks you to trust GitHub's host key. Compare the
+fingerprint it shows against GitHub's published list rather than typing `yes`
+reflexively — for the Ed25519 key it should be
+`SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU`. GitHub publishes all of
+them at *Authentication → GitHub's SSH key fingerprints* in their docs.
+
+Success looks like `Hi <username>! You've successfully authenticated, but GitHub
+does not provide shell access.` That last clause is expected, not an error.
+
+**Then clone over SSH:**
+
+```bash
+git clone git@github.com:WnareaJunior/tutoring-ops.git
 cd tutoring-ops
 git checkout claude/tutoring-ops-system-jjcwz8
+```
+
+If you already cloned over HTTPS and want to keep that directory, just repoint
+the remote:
+
+```bash
+git remote set-url origin git@github.com:WnareaJunior/tutoring-ops.git
+git remote -v
+```
+
+### Notes on the key
+
+**If you gave the key a passphrase**, git will ask for it on every pull. Load it
+into an agent once per login instead:
+
+```bash
+eval "$(ssh-agent -s)"
+ssh-add ~/.ssh/id_ed25519
+```
+
+For a service that pulls unattended, a passphrase you are never there to type is
+not protecting anything — either leave the key without one, or use a repo-scoped
+**deploy key** (GitHub → repo → Settings → Deploy keys), which can be read-only
+and is revocable without touching your account.
+
+**If you would rather no key existed on the server at all**, forward the agent
+from the laptop, which already has your GitHub key:
+
+```bash
+ssh -A you@server        # then git on the server uses the laptop's key
+```
+
+The trade is that anyone with root on the server can use your forwarded agent
+while the session is open. On your own box that is usually fine; on a shared one
+it is not.
+
+**If outbound port 22 is blocked**, GitHub also serves SSH on 443. Add to
+`~/.ssh/config` on the server:
+
+```
+Host github.com
+    Hostname ssh.github.com
+    Port 443
+    User git
 ```
 
 ## 2. Preflight, then install Docker and .NET
