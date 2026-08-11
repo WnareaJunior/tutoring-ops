@@ -137,8 +137,10 @@ packages, runs the business-rule suite, runs the concurrency suite, then builds
 and tests the .NET solution. It stops at the first failure and prints how far it
 got.
 
-First boot creates the database and takes two to four minutes. Later starts are
-seconds.
+First boot creates the database: two to four minutes with Docker's data on an
+SSD, fifteen to thirty on a mechanical drive. Later starts are much quicker. If
+there is an external SSD on the machine, do §3a first — it is the difference
+between those two columns.
 
 Expect to fix compile errors on this first run — none of this has been through
 an Oracle compiler yet. `install.sh` prints the exact `USER_ERRORS` rows (object,
@@ -149,17 +151,19 @@ When it goes green, update the "Has it been run?" section of
 `docs/build-status.md`. That file is the claim-discipline record and it currently
 says nothing has been executed.
 
-## 3a. Put Docker on the Thunderbolt SSD
+## 3a. Put Docker on the external SSD
 
 A 2012 Intel Mac runs this fine — the CPU was never the bottleneck. Storage is,
-and if there is a Thunderbolt SSD attached then the answer is simply to put
+and if there is an external SSD attached then the answer is simply to put
 Docker's data on it and stop thinking about the internal drive.
 
-Thunderbolt 1 on a 2012 Mac is 10 Gbps. A SATA SSD tops out around 550 MB/s, so
-the interface is nowhere near the limit — you get the SSD's full speed, and the
-timings below are the fast ones.
+A 2012 Mac has USB 3.0 (5 Gbps) and Thunderbolt 1 (10 Gbps), so an external SSD
+lands somewhere around 400–500 MB/s over USB — short of what a modern NVMe
+portable drive can do on a newer port, but four or five times the internal
+mechanical drive, and far better than it on the random I/O that actually decides
+how long creating a database takes.
 
-| Step | on the internal HDD | on the Thunderbolt SSD |
+| Step | on the internal HDD | on the external SSD |
 |---|---|---|
 | `docker pull` of the image (~2GB) | 5–10 min | 1–2 min |
 | First boot: creating the database | 15–30 min | 2–4 min |
@@ -167,49 +171,52 @@ timings below are the fast ones.
 | `./run_tests.sh` | 2–5 min | under a minute |
 | `dotnet build` (first, cold NuGet) | 5–15 min | 1–2 min |
 
-### First: check the filesystem
+The examples below use `/srv/storage`, which is where the SSD on this machine is
+mounted. Substitute your own path.
 
-This is the step that decides whether any of it works. A drive that came from a
-Mac is formatted APFS or HFS+, and neither is usable here — Linux has no
-production-quality write support for APFS, and exFAT has no POSIX ownership at
-all, which Docker and Oracle both require.
+### First: find it and check the filesystem
 
 ```bash
 lsblk -o NAME,SIZE,FSTYPE,MOUNTPOINT,MODEL
 ```
 
-If `FSTYPE` is `apfs`, `hfsplus` or `exfat`, it needs an ext4 filesystem. That
+If the SSD already shows `ext4` and a mount point, there is nothing to do here —
+skip to the next step.
+
+If `FSTYPE` is `apfs`, `hfsplus` or `exfat`, it needs an ext4 filesystem before
+it is usable. Linux has no production-quality write support for APFS, and exFAT
+has no POSIX ownership at all, which Docker and Oracle both require. Reformatting
 is **destructive** — copy anything you care about off it first:
 
 ```bash
 sudo mkfs.ext4 -L tutoring-ssd /dev/sdX1     # check the device name twice
 ```
 
-If it is already `ext4`, skip straight on.
+### Make sure the mount survives a reboot
 
-### Mount it so it survives a reboot
+Being mounted right now does not mean it is in `/etc/fstab`:
 
 ```bash
-sudo mkdir -p /mnt/ssd
-sudo blkid /dev/sdX1        # copy the UUID
+grep storage /etc/fstab || echo "NOT IN FSTAB -- it will not come back after a reboot"
 ```
 
-Add to `/etc/fstab`:
+If it is missing, get the UUID with `sudo blkid /dev/sda1` and add:
 
 ```
-UUID=<uuid>  /mnt/ssd  ext4  defaults,noatime,nofail,x-systemd.device-timeout=30  0  2
+UUID=<uuid>  /srv/storage  ext4  defaults,noatime,nofail,x-systemd.device-timeout=30  0  2
 ```
 
-`nofail` means the machine still boots if the drive is unplugged, rather than
+`nofail` means the machine still boots when the drive is unplugged, rather than
 dropping to an emergency shell over a missing external disk.
 
 ### Then stop Docker silently falling back
 
-This is the part worth doing carefully. `nofail` lets the system boot without
-the SSD — and if Docker starts while `/mnt/ssd` is not mounted, it will happily
-create a brand new empty data-root at that path on the *internal* disk. Your
-containers and volumes are not gone, but Docker will behave as though they never
-existed, and the database will look empty for no visible reason.
+This is the part worth doing carefully, and the reason is `nofail` above. It
+lets the system boot without the SSD — and if Docker starts while `/srv/storage`
+is not mounted, it will happily create a brand new empty data-root at that path
+on the *internal* disk. Your containers and volumes are not gone, but Docker
+behaves as though they never existed, and the database looks empty with no error
+anywhere to explain it.
 
 Tell systemd that Docker requires the mount:
 
@@ -217,36 +224,50 @@ Tell systemd that Docker requires the mount:
 sudo systemctl edit docker.service
 ```
 
-Add:
+Add exactly this, with **your** mount point:
 
 ```ini
 [Unit]
-RequiresMountsFor=/mnt/ssd
+RequiresMountsFor=/srv/storage
 ```
 
-Now Docker refuses to start without the SSD, which is a loud, obvious failure
-instead of a quiet wrong one.
+Now Docker refuses to start without the SSD: a loud, obvious failure instead of
+a quiet wrong one.
+
+A path that is not actually a mount point fails silently in the other direction
+— systemd resolves it to the nearest enclosing mount, usually `/`, which is
+always present. Docker keeps starting and the protection does nothing. So check
+the value rather than assuming:
+
+```bash
+sudo cat /etc/systemd/system/docker.service.d/override.conf
+findmnt /srv/storage        # must name the SSD, not the root filesystem
+```
 
 ### Move the data
 
+`docker.socket` has to stop too, or socket activation restarts the daemon
+underneath you mid-copy.
+
 ```bash
-sudo systemctl stop docker
-sudo mkdir -p /mnt/ssd/docker
-sudo rsync -aP /var/lib/docker/ /mnt/ssd/docker/
-printf '{\n  "data-root": "/mnt/ssd/docker"\n}\n' | sudo tee /etc/docker/daemon.json
+sudo systemctl stop docker docker.socket
+sudo mkdir -p /srv/storage/docker
+sudo rsync -aP /var/lib/docker/ /srv/storage/docker/
+printf '{\n  "data-root": "/srv/storage/docker"\n}\n' | sudo tee /etc/docker/daemon.json
 sudo systemctl daemon-reload
 sudo systemctl start docker
 
-docker info -f '{{.DockerRootDir}}'      # should print /mnt/ssd/docker
+docker info -f '{{.DockerRootDir}}'      # should print /srv/storage/docker
 ```
 
 Once that reports the new path and your containers are visible, reclaim the
-space on the internal drive:
+space on the internal drive — renaming first, deleting only after something has
+actually run:
 
 ```bash
-sudo rm -rf /var/lib/docker.bak && sudo mv /var/lib/docker /var/lib/docker.bak
-# ... confirm everything still works, then:
-sudo rm -rf /var/lib/docker.bak
+sudo mv /var/lib/docker /var/lib/docker.old
+# ... run ./scripts/verify.sh, confirm it all works, then:
+sudo rm -rf /var/lib/docker.old
 ```
 
 `./scripts/bootstrap-ubuntu.sh --check` asks Docker where its root actually is,
@@ -255,8 +276,8 @@ so after this it should report an SSD rather than a spinning disk.
 ### Worth knowing
 
 - **Do not unplug it while Oracle is running.** Datafiles on a disk that
-  disappears mid-write is how you corrupt a database. Thunderbolt is stable
-  enough for this; a yanked cable is not.
+  disappears mid-write is how you corrupt a database. The cable being seated is
+  the only thing standing between you and that.
 - **Put swap there too** if the box has 4GB or less. Swapping to the mechanical
   drive is the one thing that will make this feel unusable, and swapping to an
   SSD is merely unremarkable.
