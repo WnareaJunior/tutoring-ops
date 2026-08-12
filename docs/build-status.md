@@ -142,14 +142,22 @@ movement), `TUTORS` (the lock target for double-booking), `PKG_EVENTS`,
 | Oracle stays self-hosted, reached by tunnel | yes, decided | `design-decisions.md` §9; host is the Ubuntu server |
 | GitHub Actions deploying on push to main | yes | `.github/workflows/deploy.yml` |
 | Settings and secrets in Azure config | yes | `provision.sh`; nothing secret is committed |
-| **Stretch:** APIM | not built | — |
-| **Stretch:** Event Grid on package-exhausted | not built | the `PackageExhausted` event is already emitted, so the handler has something to bind to |
+| **Stretch:** APIM Consumption, subscription key, rate-limit policy | yes | `infra/apim-policy.xml`, `infra/provision-stretch.sh` |
+| **Stretch:** Event Grid on package-exhausted | yes | `Outbox/EventGridPublisher.cs`, `Functions/PackageExhaustedFunction.cs` |
 | **Skipped on purpose:** Data Factory, Service Fabric | — | no use for either |
 | Week 4 exit (a real student's schedule running through it) | **not done** | needs the system deployed and a real family using it |
 
 **Beyond the plan:** CI (`.github/workflows/ci.yml`) runs the PL/SQL suite and
 the concurrency suite against a real Oracle container on every push, then builds
 and tests the .NET solution against the same database.
+
+**On the stretch items:** both are written but ship disabled — Event Grid is
+inert until a topic endpoint and key are configured, and APIM does not exist
+until `provision-stretch.sh` runs. Neither has been executed, and both sit
+behind the same gate as everything else: they need a live Azure subscription
+before any claim about them is real. `docs/stretch-scope.md` has the ordering
+constraints, the three values the script refuses to guess, and how to verify
+each one actually works.
 
 ---
 

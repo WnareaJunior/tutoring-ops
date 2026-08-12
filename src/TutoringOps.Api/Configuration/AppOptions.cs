@@ -36,6 +36,32 @@ public sealed class ServiceBusOptions
     public bool IsConfigured => !string.IsNullOrWhiteSpace(ConnectionString);
 }
 
+/// <summary>
+/// Event Grid is a side-channel for a small number of event types that want a
+/// handler of their own rather than a queue consumer — today just
+/// PackageExhausted, which is a cue to sell the next block of hours.
+///
+/// Inert until both endpoint and key are set, so the core outbox path is
+/// unaffected on a system that has never provisioned it.
+/// </summary>
+public sealed class EventGridOptions
+{
+    public const string SectionName = "EventGrid";
+
+    public string TopicEndpoint { get; set; } = string.Empty;
+    public string AccessKey { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Outbox event types mirrored to Event Grid. Deliberately a short list:
+    /// everything already goes to Service Bus, and this is for events that
+    /// warrant a distinct handler rather than a second copy of the firehose.
+    /// </summary>
+    public string[] EventTypes { get; set; } = ["PackageExhausted"];
+
+    public bool IsConfigured =>
+        !string.IsNullOrWhiteSpace(TopicEndpoint) && !string.IsNullOrWhiteSpace(AccessKey);
+}
+
 /// <summary>Polling behaviour of the outbox publisher.</summary>
 public sealed class OutboxOptions
 {

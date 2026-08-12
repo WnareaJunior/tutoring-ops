@@ -94,6 +94,44 @@ public static class EmailTemplates
         };
     }
 
+    /// <summary>
+    /// The package-exhausted nudge. This one goes to the tutor, not the family,
+    /// so it is English regardless of the student's language and it reads as a
+    /// prompt to act rather than as a notification. The moment a student runs
+    /// out is the moment to sell the next block, and that moment is easy to
+    /// miss when it happens quietly in a database.
+    /// </summary>
+    public static EmailMessage BuildPackageExhausted(PackageEvent packageEvent)
+    {
+        var culture = English;
+        var name = packageEvent.StudentName;
+        var purchased = packageEvent.HoursPurchased.ToString("0.##", culture);
+        var since = packageEvent.PurchasedDate.ToString("d MMMM yyyy", culture);
+
+        var subject = $"{name} has used all their hours";
+
+        var text = string.Join(Environment.NewLine + Environment.NewLine,
+            $"{name} has just used the last hour of a {purchased} hour package bought on {since}.",
+            $"Parent contact: {packageEvent.ParentContact}",
+            "Any session booked from here needs a new package or a one-off payment, "
+                + "so this is the moment to ask.");
+
+        var html = $"""
+            <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+                        font-size:15px;line-height:1.55;color:#1f2933;max-width:560px">
+              <p><strong>{System.Net.WebUtility.HtmlEncode(name)}</strong> has just used the last
+                 hour of a {purchased} hour package bought on {since}.</p>
+              <p>Parent contact:
+                 <a href="mailto:{System.Net.WebUtility.HtmlEncode(packageEvent.ParentContact)}">
+                 {System.Net.WebUtility.HtmlEncode(packageEvent.ParentContact)}</a></p>
+              <p>Any session booked from here needs a new package or a one-off payment,
+                 so this is the moment to ask.</p>
+            </div>
+            """;
+
+        return new EmailMessage(subject, html, text);
+    }
+
     private static EmailMessage Message(
         string subject, string greeting, string line1, string line2, string closing)
     {

@@ -20,6 +20,9 @@
     "CosmosDatabaseName": "tutoring",
     "CosmosContainerName": "student-dashboards",
 
+    "//eventgrid": "Where the package-exhausted nudge is sent. Empty = handler logs and does nothing.",
+    "TutorNotificationEmail": "",
+
     "//sendgrid": "Leave SendGridApiKey empty to log emails instead of sending.",
     "SendGridApiKey": "",
     "SendGridFromAddress": "tutor@example.com",

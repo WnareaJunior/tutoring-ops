@@ -14,6 +14,8 @@ builder.Services.Configure<ServiceBusOptions>(
     builder.Configuration.GetSection(ServiceBusOptions.SectionName));
 builder.Services.Configure<OutboxOptions>(
     builder.Configuration.GetSection(OutboxOptions.SectionName));
+builder.Services.Configure<EventGridOptions>(
+    builder.Configuration.GetSection(EventGridOptions.SectionName));
 
 // Azure App Service surfaces connection strings as CUSTOMCONNSTR_*, which the
 // configuration provider exposes under ConnectionStrings. Prefer that when it
@@ -52,6 +54,21 @@ builder.Services.AddSingleton<IEventPublisher>(sp =>
     }
 
     return new LoggingEventPublisher(sp.GetRequiredService<ILogger<LoggingEventPublisher>>());
+});
+
+// Event Grid is a stretch feature and stays entirely inert unless a topic is
+// configured — the disabled implementation handles no event types, so the
+// publisher never reaches it.
+builder.Services.AddSingleton<IEventGridPublisher>(sp =>
+{
+    var options = sp.GetRequiredService<IOptions<EventGridOptions>>();
+    if (!options.Value.IsConfigured)
+    {
+        return new DisabledEventGridPublisher();
+    }
+
+    return new AzureEventGridPublisher(
+        options, sp.GetRequiredService<ILogger<AzureEventGridPublisher>>());
 });
 
 builder.Services.AddHostedService<OutboxPublisherService>();
@@ -107,9 +124,14 @@ app.UseExceptionHandler(handler => handler.Run(async context =>
     });
 }));
 
+// The OpenAPI document is served in every environment, because APIM imports the
+// API from it — without that, every operation has to be recreated by hand in
+// the portal and then kept in step. The document describes a public surface and
+// contains no secrets. The interactive UI stays development-only.
+app.UseSwagger();
+
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();
     app.UseSwaggerUI();
 }
 

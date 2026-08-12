@@ -22,17 +22,20 @@ public sealed class OutboxPublisherService : BackgroundService
 {
     private readonly OutboxRepository _outbox;
     private readonly IEventPublisher _publisher;
+    private readonly IEventGridPublisher _eventGrid;
     private readonly OutboxOptions _options;
     private readonly ILogger<OutboxPublisherService> _logger;
 
     public OutboxPublisherService(
         OutboxRepository outbox,
         IEventPublisher publisher,
+        IEventGridPublisher eventGrid,
         IOptions<OutboxOptions> options,
         ILogger<OutboxPublisherService> logger)
     {
         _outbox = outbox;
         _publisher = publisher;
+        _eventGrid = eventGrid;
         _options = options.Value;
         _logger = logger;
     }
@@ -108,6 +111,15 @@ public sealed class OutboxPublisherService : BackgroundService
             try
             {
                 await _publisher.PublishAsync(outboxEvent, cancellationToken);
+
+                // Service Bus first, always. Event Grid is a side-channel for a
+                // couple of event types and must never come before the
+                // destination that everything actually depends on.
+                if (_eventGrid.Handles(outboxEvent.EventType))
+                {
+                    await _eventGrid.PublishAsync(outboxEvent, cancellationToken);
+                }
+
                 await _outbox.MarkPublishedAsync(connection, outboxEvent.EventId, cancellationToken);
             }
             catch (Exception ex)

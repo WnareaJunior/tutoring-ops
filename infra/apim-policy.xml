@@ -1,0 +1,66 @@
+<!--
+  API-level policy for the tutoring API behind APIM.
+
+  Deliberately one policy. The goal is to convert APIM from "unknown" to "used"
+  with something real, not to build a gateway configuration nobody maintains.
+
+  IMPORTANT, and the thing that catches people out: the Consumption tier does
+  NOT support <rate-limit> or <quota>. Those are subscription-scoped and depend
+  on state the Consumption gateway does not keep. Using them yields a policy
+  that fails validation on save, or silently never applies. The supported
+  equivalents are <rate-limit-by-key> and <quota-by-key>, which carry their own
+  counter key, so that is what this uses.
+
+  (Note for anyone editing these comments: XML forbids a double hyphen inside a
+  comment, and the management API rejects the whole policy when one appears.)
+-->
+<policies>
+  <inbound>
+    <base />
+
+    <!--
+      60 calls a minute, counted per subscription.
+
+      The business books a handful of sessions a day, so this is nowhere near a
+      real ceiling for legitimate use. It exists to make a runaway client or a
+      loop in a script visible and bounded, not to shape traffic. Raise it
+      freely; the point is that the limit exists and is enforced at the edge
+      rather than in application code.
+
+      counter-key falls back to caller IP so an unauthenticated request that
+      somehow reaches the gateway is still bounded rather than uncounted.
+    -->
+    <rate-limit-by-key
+        calls="60"
+        renewal-period="60"
+        counter-key="@(context.Subscription?.Id ?? context.Request.IpAddress)"
+        remaining-calls-header-name="X-RateLimit-Remaining"
+        remaining-calls-variable-name="remainingCalls"
+        retry-after-header-name="Retry-After" />
+
+    <!--
+      Tells the backend which gateway a request arrived through. The API does
+      not currently read this. It is here so that "only accept traffic via
+      APIM" becomes a one-line change in the API rather than a redesign, should
+      the Web App ever need to stop answering direct calls.
+    -->
+    <set-header name="X-Forwarded-By" exists-action="override">
+      <value>apim</value>
+    </set-header>
+  </inbound>
+
+  <backend>
+    <base />
+  </backend>
+
+  <outbound>
+    <base />
+    <!-- Do not advertise the backend stack to callers. -->
+    <set-header name="X-Powered-By" exists-action="delete" />
+    <set-header name="Server" exists-action="delete" />
+  </outbound>
+
+  <on-error>
+    <base />
+  </on-error>
+</policies>
