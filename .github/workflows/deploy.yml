@@ -47,6 +47,11 @@ jobs:
           name: publish
           path: ./publish
           retention-days: 5
+          # The .NET isolated worker publishes a hidden .azurefunctions folder
+          # that the Functions host requires; v4 strips hidden files unless
+          # told otherwise, which deploys a package that starts cleanly and
+          # loads zero functions.
+          include-hidden-files: true
 
   deploy:
     name: Deploy
