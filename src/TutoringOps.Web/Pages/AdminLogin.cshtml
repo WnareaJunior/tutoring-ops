@@ -1,0 +1,27 @@
+@page
+@model AdminLoginModel
+@{
+    ViewData["Title"] = "Sign in";
+}
+
+<div class="parent">
+    <h1>Tutor sign-in</h1>
+    <p class="subtitle">These pages hold family contact details.</p>
+
+    @if (Model.ErrorMessage is not null)
+    {
+        <div class="alert error">@Model.ErrorMessage</div>
+    }
+
+    <div class="card" style="max-width:420px">
+        <form method="post">
+            <input type="hidden" asp-for="ReturnUrl" />
+            <div class="field">
+                <label asp-for="Passcode">Passcode</label>
+                <input asp-for="Passcode" type="password" autocomplete="current-password" required />
+            </div>
+            <p></p>
+            <button type="submit">Sign in</button>
+        </form>
+    </div>
+</div>

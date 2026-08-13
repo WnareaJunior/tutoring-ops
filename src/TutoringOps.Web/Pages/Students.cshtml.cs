@@ -5,7 +5,7 @@ using TutoringOps.Web.Services;
 namespace TutoringOps.Web.Pages;
 
 /// <summary>The roster and its balances, plus the two writes that change them.</summary>
-public sealed class StudentsModel : PageModel
+public sealed class StudentsModel : AdminPageModel
 {
     private readonly TutoringApiClient _api;
 

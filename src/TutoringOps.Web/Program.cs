@@ -11,6 +11,14 @@ builder.Services.AddHttpClient<TutoringApiClient>(client =>
     var baseUrl = builder.Configuration["TutoringApi:BaseUrl"] ?? "http://localhost:5080/";
     client.BaseAddress = new Uri(baseUrl.EndsWith('/') ? baseUrl : baseUrl + "/");
     client.Timeout = TimeSpan.FromSeconds(30);
+
+    // The API requires this key for anything beyond /health once one is
+    // configured; the Function App sends the same one.
+    var opsKey = builder.Configuration["TutoringApi:OpsKey"];
+    if (!string.IsNullOrWhiteSpace(opsKey))
+    {
+        client.DefaultRequestHeaders.Add("X-Ops-Key", opsKey);
+    }
 });
 
 // The parent status page reads the Cosmos projection when it is configured and

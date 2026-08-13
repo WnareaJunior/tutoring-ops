@@ -11,7 +11,7 @@ namespace TutoringOps.Web.Pages;
 /// Every refusal shown on this page comes from PL/SQL. The page has no idea
 /// what a double booking is; it just prints what the database said.
 /// </summary>
-public sealed class ScheduleModel : PageModel
+public sealed class ScheduleModel : AdminPageModel
 {
     private readonly TutoringApiClient _api;
     private readonly ILogger<ScheduleModel> _logger;

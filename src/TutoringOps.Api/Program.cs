@@ -136,6 +136,38 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors();
+
+// One shared key between the services I own -- the same X-Ops-Key the ops
+// endpoints always used, now required for everything that reads or writes
+// data. This became necessary the day a real student's name entered a
+// publicly-reachable API. Health stays open (the deploy pipeline probes it)
+// and so does the OpenAPI document (a public surface, no data). When no key
+// is configured -- a laptop, no Azure -- everything stays open, as before.
+var opsApiKey = app.Configuration["Ops:ApiKey"];
+app.Use(async (context, next) =>
+{
+    var path = context.Request.Path;
+    var isOpen = path.StartsWithSegments("/health")
+              || path.StartsWithSegments("/swagger");
+
+    if (!isOpen && !string.IsNullOrWhiteSpace(opsApiKey))
+    {
+        var provided = context.Request.Headers["X-Ops-Key"].ToString();
+        if (provided != opsApiKey)
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            await context.Response.WriteAsJsonAsync(new
+            {
+                title = "Missing or invalid X-Ops-Key",
+                status = 401
+            });
+            return;
+        }
+    }
+
+    await next();
+});
+
 app.MapControllers();
 
 // Liveness for App Service, and a readiness probe that actually talks to Oracle
