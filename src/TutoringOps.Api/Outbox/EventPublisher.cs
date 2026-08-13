@@ -48,6 +48,17 @@ public sealed class ServiceBusEventPublisher : IEventPublisher
 
     public async Task PublishAsync(OutboxEvent outboxEvent, CancellationToken cancellationToken)
     {
+        // A message instance cannot be sent twice (and ServiceBusMessage has
+        // no copy constructor), so each sender gets its own build.
+        await _queueSender.SendMessageAsync(BuildMessage(outboxEvent), cancellationToken);
+        await _topicSender.SendMessageAsync(BuildMessage(outboxEvent), cancellationToken);
+
+        _logger.LogDebug("Published event {EventId} ({EventType})",
+            outboxEvent.EventId, outboxEvent.EventType);
+    }
+
+    private static ServiceBusMessage BuildMessage(OutboxEvent outboxEvent)
+    {
         var message = new ServiceBusMessage(new BinaryData(Encoding.UTF8.GetBytes(outboxEvent.Payload)))
         {
             ContentType = "application/json",
@@ -65,14 +76,7 @@ public sealed class ServiceBusEventPublisher : IEventPublisher
         message.ApplicationProperties["aggregateType"] = outboxEvent.AggregateType;
         message.ApplicationProperties["aggregateId"] = outboxEvent.AggregateId;
 
-        await _queueSender.SendMessageAsync(message, cancellationToken);
-
-        // A message instance cannot be sent twice, so the topic gets its own.
-        var topicMessage = new ServiceBusMessage(message);
-        await _topicSender.SendMessageAsync(topicMessage, cancellationToken);
-
-        _logger.LogDebug("Published event {EventId} ({EventType})",
-            outboxEvent.EventId, outboxEvent.EventType);
+        return message;
     }
 
     public async ValueTask DisposeAsync()
