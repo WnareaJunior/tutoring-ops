@@ -6,12 +6,21 @@
 #
 #   ./scripts/dev-vm.sh create    one-time: resource group, VM, lockdown, auto-shutdown
 #   ./scripts/dev-vm.sh start     boot it and wait for SSH
-#   ./scripts/dev-vm.sh stop      deallocate -- compute billing stops
+#   ./scripts/dev-vm.sh stop      deallocate -- compute billing stops, AND the
+#                                 deployed site loses its database (see below)
 #   ./scripts/dev-vm.sh status    running or deallocated, and what it costs
 #   ./scripts/dev-vm.sh ip        the VM's public IP
 #   ./scripts/dev-vm.sh allow-me  re-point the SSH firewall rule at this laptop's
 #                                 current public IP (run after your home IP changes)
+#   ./scripts/dev-vm.sh always-on remove the nightly auto-shutdown
+#   ./scripts/dev-vm.sh nightly   restore the nightly 07:00 UTC auto-shutdown
 #   ./scripts/dev-vm.sh delete    remove everything, including the disk
+#
+# CURRENT POLICY (since 2026-08-13): the VM runs 24/7. It is no longer the dev
+# server -- devbox is -- but it hosts Oracle for the DEPLOYED site, which the
+# demo URLs depend on. The nightly auto-shutdown is disabled; `stop` takes the
+# demo down with it. ~$45/mo while this holds. Revert with `nightly` when the
+# demo no longer needs to be always-up.
 #
 # Costs while this exists (northcentralus, Aug 2026 ballpark):
 #   running      ~$0.06/hr  (Standard_B2as_v2, 2 vCPU x86_64, 8GB)
@@ -103,7 +112,7 @@ case "${1:-}" in
         STATE="$(az vm show -d --resource-group "$RG" --name "$VM" --query powerState -o tsv)"
         echo "$VM: $STATE"
         case "$STATE" in
-            *running*)     echo "billing ~\$0.06/hr -- './scripts/dev-vm.sh stop' when done" ;;
+            *running*)     echo "billing ~\$0.06/hr -- the deployed demo depends on this VM; 'stop' takes the site down" ;;
             *deallocated*) echo "compute billing stopped; only disk + IP (~\$6/mo)" ;;
         esac
         ;;
@@ -122,13 +131,23 @@ case "${1:-}" in
         echo "SSH now allowed from $(my_ip) only."
         ;;
 
+    always-on)
+        az vm auto-shutdown --resource-group "$RG" --name "$VM" --off --output none
+        echo "Nightly auto-shutdown removed. The VM (and the demo) stay up until 'stop'."
+        ;;
+
+    nightly)
+        az vm auto-shutdown --resource-group "$RG" --name "$VM" --time 0700 --output none
+        echo "Nightly 07:00 UTC auto-shutdown restored."
+        ;;
+
     delete)
         echo "This deletes the VM, its disk, and everything in $RG."
         az group delete --name "$RG" --yes
         ;;
 
     *)
-        sed -n '3,26p' "$0" | sed 's/^# \{0,1\}//'
+        sed -n '3,33p' "$0" | sed 's/^# \{0,1\}//'
         exit 2
         ;;
 esac

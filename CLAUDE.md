@@ -47,10 +47,11 @@ SSH port 2222, keys only (the laptop's `~/.ssh/config` has the block).
 
 **`wilsserver` — the Azure VM, now only the deployed system's Oracle host.**
 The deployed API reaches it via VNet integration and a socat forwarder on its
-private IP. Managed with `scripts/dev-vm.sh`; bills ~$0.06/hr running,
-auto-stops 07:00 UTC nightly. **If it is stopped or Oracle is down on it, the
-deployed site is degraded** — `restart: unless-stopped` brings Oracle up with
-the VM. Do not point the dev loop here; export `TUTORING_REMOTE` explicitly
+private IP. Managed with `scripts/dev-vm.sh`; bills ~$0.06/hr running.
+**Policy since 2026-08-13: runs 24/7 — the demo URLs depend on it.** The
+nightly auto-shutdown is disabled (`dev-vm.sh nightly` restores it). **If it
+is stopped or Oracle is down on it, the deployed site is degraded** —
+`restart: unless-stopped` brings Oracle up with the VM. Do not point the dev loop here; export `TUTORING_REMOTE` explicitly
 when it genuinely needs attention.
 
 ## Where you are running
