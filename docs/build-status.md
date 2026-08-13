@@ -35,10 +35,29 @@ killed every racer), a Sunday-slide slot collision in race B, a missing
 `ServiceBusMessage` copy constructor, and a missing Application Insights
 package reference.
 
-**The Azure chain (Weeks 3–4): still not run.** No Service Bus namespace,
-Function App, Cosmos account, or Web App exists yet; `infra/provision.sh` has
-never executed and the deploy workflow has never fired. Those claims remain
-gated on a live deployment.
+**The Azure chain: deployed and seen working, 2026-08-13.** `infra/provision.sh`
+ran against a live subscription (Azure for Students; Service Bus and the web
+apps in northcentralus, Cosmos and the Function App in westus after capacity
+refusals — the script grew region knobs for both). The deploy workflow has run
+green end to end, and the full chain was watched happen:
+
+- A booking made through the **deployed** API (`POST /sessions` on the
+  App Service) committed to Oracle over VNet integration — the listener stays
+  loopback-bound on the host; a socat unit exposes it to the VNet only.
+- The outbox publisher drained every event to the Service Bus queue and topic
+  (32 events, `PUBLISHED_FLAG='Y'`, one attempt each).
+- The `reminders` subscription's SQL filter passed only parent-facing events
+  (14 of 32); `SendSessionReminder` consumed all of them.
+- `UpdateStudentReadModel` projected all 32 into Cosmos: 12 dashboard
+  documents, and the test booking's document shows the reserved hour, the
+  upcoming session, and the payment, exactly as Oracle has them.
+
+Live URLs: API and UI respond at their `*.azurewebsites.net` addresses;
+`/health/ready` returns 200 with Oracle reachable.
+
+**Still not run:** the stretch items (APIM, Event Grid) ship disabled as
+before, and no real family is in the system yet — the Week 4 exit remains
+open.
 
 Until a line here says it ran, it has not.
 
@@ -117,7 +136,7 @@ movement), `TUTORS` (the lock target for double-booking), `PKG_EVENTS`,
 | Cosmos container `student-dashboards`, partition key `/studentId` | yes | `infra/provision.sh` |
 | Read-model document per student | yes | `Models/StudentDashboardDocument.cs` |
 | Written only by the Function App, read only by the UI | yes | one-way by construction |
-| Week 3 exit test (watch the chain, screenshot it) | **not done** | needs a live Azure subscription |
+| Week 3 exit test (watch the chain) | **done 2026-08-13** | booking → Service Bus → both functions → Cosmos, watched live |
 
 ## Week 4 — UI, deployment, stretch
 
@@ -172,8 +191,8 @@ line until the thing it describes has actually run.**
 | Line | Supported when |
 |---|---|
 | Line 1 | `./db/run_tests.sh` and `./db/run_concurrency.sh` pass, and `dotnet test` passes — **met 2026-08-12** |
-| Line 2 | a booking made locally has been seen to land in Service Bus, fire both functions, and update the Cosmos document |
-| Line 3 | the deploy workflow has run green and the deployed URLs respond |
+| Line 2 | a booking made locally has been seen to land in Service Bus, fire both functions, and update the Cosmos document — **met 2026-08-13** (booked through the deployed API) |
+| Line 3 | the deploy workflow has run green and the deployed URLs respond — **met 2026-08-13** |
 | "for an active tutoring business" | at least one real student's schedule is in it |
 
 **Interview sentence:** "I run a tutoring business on the side and built its
