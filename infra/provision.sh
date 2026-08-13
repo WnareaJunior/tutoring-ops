@@ -83,7 +83,7 @@ for sub in "$SUB_REMINDERS" "$SUB_BILLING"; do
     --topic-name "$SB_TOPIC" \
     --name "$sub" \
     --max-delivery-count 10 \
-    --dead-lettering-on-message-expiration true \
+    --enable-dead-lettering-on-message-expiration true \
     --output none
 done
 
@@ -263,9 +263,13 @@ Ops key (the API and the Function App share it): $OPS_KEY
 
 Next:
   1. Set the Oracle connection string on $API_APP (see above).
-  2. Add these as GitHub repository secrets for the deploy workflow:
-       AZURE_CREDENTIALS       (az ad sp create-for-rbac --sdk-auth)
-       AZURE_API_APP_NAME      $API_APP
-       AZURE_UI_APP_NAME       $UI_APP
-       AZURE_FUNCTION_APP_NAME $FUNCTION_APP
+  2. Add these as GitHub repository secrets for the deploy workflow
+     (publish profiles, not a service principal -- the student tenant
+     refuses app registrations):
+       AZURE_API_APP_NAME           $API_APP
+       AZURE_UI_APP_NAME            $UI_APP
+       AZURE_FUNCTION_APP_NAME      $FUNCTION_APP
+       AZURE_API_PUBLISH_PROFILE    az webapp deployment list-publishing-profiles -g $RESOURCE_GROUP -n $API_APP --xml
+       AZURE_UI_PUBLISH_PROFILE     az webapp deployment list-publishing-profiles -g $RESOURCE_GROUP -n $UI_APP --xml
+       AZURE_FUNCTION_PUBLISH_PROFILE  az functionapp deployment list-publishing-profiles -g $RESOURCE_GROUP -n $FUNCTION_APP --xml
 EOF
