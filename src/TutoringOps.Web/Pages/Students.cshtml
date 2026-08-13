@@ -29,7 +29,7 @@
                 <th>Student</th>
                 <th>Parent contact</th>
                 <th>Language</th>
-                <th>Hours left</th>
+                <th class="num">Hours left</th>
                 <th>Status</th>
             </tr>
         </thead>
@@ -44,13 +44,13 @@
                 <td>@student.FullName</td>
                 <td>@student.ParentContact</td>
                 <td>@(student.PreferredLanguage == "ES" ? "Español" : "English")</td>
-                <td>
+                <td class="num">
                     @* Under two hours is the point to sell the next package. *@
-                    <span class="pill @(student.HoursRemaining < 2 ? "low" : "")">
+                    <span class="pill @(student.HoursRemaining < 2 ? "low" : "ok")">
                         @student.HoursRemaining.ToString("0.##") h
                     </span>
                 </td>
-                <td>@(student.IsActive ? "active" : "inactive")</td>
+                <td class="@(student.IsActive ? "" : "muted")">@(student.IsActive ? "active" : "inactive")</td>
             </tr>
         }
         </tbody>

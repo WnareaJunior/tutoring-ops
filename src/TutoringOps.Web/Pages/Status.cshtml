@@ -4,8 +4,13 @@
     ViewData["Title"] = "Status";
     var d = Model.Dashboard;
     var es = Model.IsSpanish;
+    // Day and month names follow the family's language, not the server's.
+    var culture = es
+        ? new System.Globalization.CultureInfo("es-ES")
+        : System.Globalization.CultureInfo.InvariantCulture;
 }
 
+<div class="parent">
 @if (d is null)
 {
     <h1>Your sessions</h1>
@@ -75,36 +80,29 @@ else
         }
         else
         {
-            <table>
-                <thead>
-                    <tr>
-                        <th>@(es ? "Fecha" : "Date")</th>
-                        <th>@(es ? "Hora" : "Time")</th>
-                        <th>@(es ? "Duración" : "Length")</th>
-                        <th>@(es ? "Estado" : "Status")</th>
-                    </tr>
-                </thead>
-                <tbody>
-                @foreach (var session in d.UpcomingSessions)
-                {
-                    <tr>
-                        <td>@session.StartTime.ToString("dddd d MMMM")</td>
-                        <td>@session.StartTime.ToString("HH:mm")–@session.EndTime.ToString("HH:mm")</td>
-                        <td>@session.DurationMinutes min</td>
-                        <td>
-                            @if (session.Status == "REQUESTED")
-                            {
-                                <span class="pill">@(es ? "pendiente" : "requested")</span>
-                            }
-                            else
-                            {
-                                <span class="pill">@(es ? "confirmada" : "confirmed")</span>
-                            }
-                        </td>
-                    </tr>
-                }
-                </tbody>
-            </table>
+            <ul class="session-list">
+            @foreach (var session in d.UpcomingSessions)
+            {
+                <li>
+                    <span class="when">
+                        <span class="dow">@session.StartTime.ToString("dddd", culture)</span>
+                        <span class="date">@session.StartTime.ToString("d MMM", culture)</span>
+                    </span>
+                    <span class="time">
+                        @session.StartTime.ToString("HH:mm")–@session.EndTime.ToString("HH:mm")
+                        · @session.DurationMinutes min
+                    </span>
+                    @if (session.Status == "REQUESTED")
+                    {
+                        <span class="pill">@(es ? "pendiente" : "requested")</span>
+                    }
+                    else
+                    {
+                        <span class="pill ok">@(es ? "confirmada" : "confirmed")</span>
+                    }
+                </li>
+            }
+            </ul>
         }
     </div>
 
@@ -120,7 +118,7 @@ else
                 <thead>
                     <tr>
                         <th>@(es ? "Fecha" : "Date")</th>
-                        <th>@(es ? "Importe" : "Amount")</th>
+                        <th class="num">@(es ? "Importe" : "Amount")</th>
                         <th>@(es ? "Método" : "Method")</th>
                     </tr>
                 </thead>
@@ -129,7 +127,7 @@ else
                 {
                     <tr>
                         <td>@payment.PaidDate.ToString("d MMM yyyy")</td>
-                        <td>@payment.Amount.ToString("C0")</td>
+                        <td class="num">@payment.Amount.ToString("C0")</td>
                         <td>@payment.Method</td>
                     </tr>
                 }
@@ -148,3 +146,4 @@ else
             : "To cancel, please give more than 24 hours' notice.")
     </p>
 }
+</div>

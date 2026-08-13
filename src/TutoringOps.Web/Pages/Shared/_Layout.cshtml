@@ -1,6 +1,9 @@
 @{
-    var isParentPage = (Context.Request.Path.Value ?? string.Empty)
-        .StartsWith("/Status", StringComparison.OrdinalIgnoreCase);
+    var currentPath = Context.Request.Path.Value ?? string.Empty;
+    var isParentPage = currentPath.StartsWith("/Status", StringComparison.OrdinalIgnoreCase);
+
+    string NavClass(string page) =>
+        currentPath.StartsWith(page, StringComparison.OrdinalIgnoreCase) ? "active" : "";
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -16,9 +19,9 @@
         @if (!isParentPage)
         {
             <nav>
-                <a asp-page="/Schedule">Schedule</a>
-                <a asp-page="/Students">Students</a>
-                <a asp-page="/Status">Parent view</a>
+                <a asp-page="/Schedule" class="@NavClass("/Schedule")">Schedule</a>
+                <a asp-page="/Students" class="@NavClass("/Students")">Students</a>
+                <a asp-page="/Status" class="@NavClass("/Status")">Parent view</a>
             </nav>
         }
     </header>
