@@ -46,7 +46,9 @@
                 <td>@(student.PreferredLanguage == "ES" ? "Español" : "English")</td>
                 <td class="num">
                     @* Under two hours is the point to sell the next package. *@
-                    <span class="pill @(student.HoursRemaining < 2 ? "low" : "ok")">
+                    @* Low hours is the one signal this column exists for;
+                       healthy balances stay quiet. *@
+                    <span class="pill @(student.HoursRemaining < 2 ? "low" : "")">
                         @student.HoursRemaining.ToString("0.##") h
                     </span>
                 </td>

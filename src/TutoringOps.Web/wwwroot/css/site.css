@@ -123,6 +123,10 @@ h2 { font-size: 1rem; font-weight: 600; letter-spacing: -0.005em; margin: 2rem 0
 
 .muted { color: var(--muted); font-size: 13px; }
 
+/* Content links: the accent, not browser blue, and no visited-purple. */
+main a { color: var(--accent-ink); text-decoration-color: var(--accent-soft-border); text-underline-offset: 2px; }
+main a:hover { text-decoration-color: var(--accent); }
+
 /* --- surfaces ------------------------------------------------------------ */
 
 .card {

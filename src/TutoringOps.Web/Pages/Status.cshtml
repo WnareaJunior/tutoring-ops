@@ -127,7 +127,10 @@ else
                 {
                     <tr>
                         <td>@payment.PaidDate.ToString("d MMM yyyy")</td>
-                        <td class="num">@payment.Amount.ToString("C0")</td>
+                        @* en-US always: the business charges dollars whatever
+                           language the family reads in. The server's own
+                           culture is invariant, whose symbol is '¤'. *@
+                        <td class="num">@payment.Amount.ToString("C0", new System.Globalization.CultureInfo("en-US"))</td>
                         <td>@payment.Method</td>
                     </tr>
                 }
