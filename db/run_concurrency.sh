@@ -4,7 +4,7 @@
 #
 # 40_test_consistency.sql proves the rules hold against a caller that gets them
 # wrong. This script proves they hold against callers that get them wrong *at
-# the same time*, which is the only version an interviewer actually cares about.
+# the same time*, which is the only version that matters in production.
 #
 # Three races, each run from independent sqlplus sessions:
 #

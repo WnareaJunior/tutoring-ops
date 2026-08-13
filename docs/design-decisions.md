@@ -63,7 +63,7 @@ It also handles a case a single `PACKAGE_ID` column on `SESSIONS` cannot: a
 package and writes two `RESERVE` rows. Cancelling unwinds both, exactly once
 each. `db/tests/20_test_billing.sql` covers it.
 
-**The interview answer to "why is the business logic in the database":** because
+**The short answer to "why is the business logic in the database":** because
 the invariant is enforced by the schema. Two people can hit cancel at the same
 instant on two different machines and the hour comes back once, because the
 second `RELEASE` cannot exist. No amount of retry logic, distributed lock or
@@ -181,21 +181,20 @@ Azure.** `infra/provision.sh` provisions everything else.
 
 Oracle XE in Azure means a VM, a disk and an ongoing bill for a database serving
 a handful of bookings a day. The deployed API reaches it over a tunnel
-(Tailscale or a dev tunnel), and the connection string is set by hand on the Web
-App rather than committed.
+(a private VNet or an overlay network), and the connection string is set by
+hand on the Web App rather than committed.
 
-The plan said WSL; the host is an Ubuntu server, which is strictly better for
-this. It does not sleep, so the parent status page and the nightly reminder
-sweep keep working when the laptop is shut, and a demo does not depend on a lid
-being open. Setup is in `running-on-ubuntu-server.md`.
+The plan said WSL; the host is a dedicated Ubuntu server, which is strictly
+better for this. It does not sleep, so the parent status page and the nightly
+reminder sweep keep working when the laptop is shut.
 
-The listener is bound to loopback and reached over SSH or Tailscale, never
-published. An Oracle port open to the internet with a development password is
+The listener is bound to loopback and reached over SSH or a private network,
+never published. An Oracle port open to the internet with a development password is
 found by scanners in hours, and "it is only a side project" is not a mitigation.
 
-This is worth saying out loud in an interview rather than hiding: the resume
-line is "built with Oracle and PL/SQL", which is true either way. Paying to run
-XE in a cloud would not make it more true.
+This is worth saying out loud rather than hiding: the claim is "built with
+Oracle and PL/SQL", which is true either way. Paying to run XE in a cloud would
+not make it more true.
 
 ## 10. Test choices
 

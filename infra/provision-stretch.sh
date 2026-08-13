@@ -185,6 +185,33 @@ az apim product api add \
   --api-id "$APIM_API_ID" \
   --output none
 
+echo "--- named value carrying the backend key"
+# The policy sends X-Ops-Key to the backend (which requires it for anything
+# beyond /health); the value is read from what the API app already uses, so
+# there is exactly one place this key lives.
+OPS_KEY="$(az webapp config appsettings list \
+  --resource-group "$RESOURCE_GROUP" --name "$API_APP" \
+  --query "[?name=='Ops__ApiKey'].value | [0]" -o tsv)"
+
+if [[ -n "$OPS_KEY" ]]; then
+  az apim nv create \
+    --resource-group "$RESOURCE_GROUP" \
+    --service-name "$APIM_NAME" \
+    --named-value-id "ops-api-key" \
+    --display-name "ops-api-key" \
+    --value "$OPS_KEY" \
+    --secret true \
+    --output none 2>/dev/null || \
+  az apim nv update \
+    --resource-group "$RESOURCE_GROUP" \
+    --service-name "$APIM_NAME" \
+    --named-value-id "ops-api-key" \
+    --value "$OPS_KEY" \
+    --output none
+else
+  echo "    Ops__ApiKey is not set on $API_APP; skipping (backend is open)."
+fi
+
 echo "--- applying the rate-limit policy"
 # The CLI has no first-class command for API policy, so this goes through the
 # management API directly. python3 does the JSON escaping because the policy is
@@ -208,13 +235,13 @@ az rest --method put \
   --output none
 
 echo "--- creating a subscription key"
-az apim product subscription create \
-  --resource-group "$RESOURCE_GROUP" \
-  --service-name "$APIM_NAME" \
-  --product-id "$APIM_PRODUCT_ID" \
-  --name "primary" \
-  --display-name "Primary key" \
-  --output none 2>/dev/null || echo "    already exists."
+# Through the management API: the CLI's product-subscription command group is
+# not reliably present, and its failure hid behind this fallback once already.
+az rest --method put \
+  --url "https://management.azure.com/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.ApiManagement/service/${APIM_NAME}/subscriptions/primary?api-version=2022-08-01" \
+  --headers "Content-Type=application/json" \
+  --body "{\"properties\":{\"scope\":\"/products/${APIM_PRODUCT_ID}\",\"displayName\":\"Primary key\",\"state\":\"active\"}}" \
+  --output none
 
 APIM_GATEWAY="$(az apim show --resource-group "$RESOURCE_GROUP" --name "$APIM_NAME" \
   --query gatewayUrl -o tsv)"

@@ -21,16 +21,16 @@
 # or a tool timeout on a 20 minute build -- cannot kill them. Start it, then
 # poll with `tail`.
 #
-# Override the target:
+# Point it at your server:
 #   export TUTORING_REMOTE=user@host
 #   export TUTORING_REMOTE_DIR=tutoring-ops
 #
 # Worth setting up connection reuse first, or every call pays a fresh TCP and
 # TLS handshake. In ~/.ssh/config on the laptop:
 #
-#   Host wilsserver
+#   Host myserver
 #       HostName <address>
-#       User wnarea
+#       User <user>
 #       ControlMaster auto
 #       ControlPath ~/.ssh/cm-%r@%h:%p
 #       ControlPersist 10m
@@ -40,21 +40,18 @@
 # =============================================================================
 set -euo pipefail
 
-# devbox is the desktop dev server (WSL2 behind Tailscale; see the connection
-# doc). wilsserver -- the Azure VM -- still exists but only to serve Oracle to
-# the deployed API: export TUTORING_REMOTE=wnarea@wilsserver to target it.
-REMOTE="${TUTORING_REMOTE:-wnarea@devbox}"
+REMOTE="${TUTORING_REMOTE:-}"
 REMOTE_DIR="${TUTORING_REMOTE_DIR:-tutoring-ops}"
 
-# The .NET SDK on devbox is a user-local install (WSL sudo wants a password,
-# which a non-interactive session cannot give), and non-interactive ssh never
-# reads .bashrc -- so put it on PATH here.
+# Servers without root access end up with a user-local .NET SDK in ~/.dotnet,
+# and non-interactive ssh never reads .bashrc -- so put it on PATH here.
+# Harmless where the SDK is system-wide.
 DOTNET_PATH='PATH="$PATH:$HOME/.dotnet:$HOME/.dotnet/tools"'
 
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 
 usage() {
-    sed -n '3,30p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '3,39p' "$0" | sed 's/^# \{0,1\}//'
     exit "${1:-0}"
 }
 
@@ -95,6 +92,17 @@ remote_bg() {
     echo "  ./scripts/remote.sh log    $name      follow it"
     echo "  ./scripts/remote.sh status $name      still running?"
 }
+
+case "${1:-}" in
+    ""|-h|--help|help)
+        usage 0
+        ;;
+esac
+
+if [[ -z "$REMOTE" ]]; then
+    echo "Set TUTORING_REMOTE=user@host first -- the server this should run on." >&2
+    exit 2
+fi
 
 case "${1:-}" in
     sync)
@@ -162,10 +170,6 @@ case "${1:-}" in
 
     shell)
         ssh -t "$REMOTE" "cd '$REMOTE_DIR' && exec \$SHELL -l"
-        ;;
-
-    ""|-h|--help|help)
-        usage 0
         ;;
 
     *)

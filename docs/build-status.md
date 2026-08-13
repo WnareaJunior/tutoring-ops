@@ -1,15 +1,14 @@
 # Build status
 
-The whole point of the original plan was claim discipline: nothing goes on a
-resume until the corresponding checkbox is real. This file keeps that honest.
-
-There are two different questions, and they are tracked separately:
+This file is the project's execution record. There are two different
+questions, and they are tracked separately:
 
 1. **Is it written?** — is the code in this repo.
 2. **Has it been run?** — has it been executed against a real Oracle, a real
    Azure subscription, a real family.
 
-Code that is written but never executed is not a rung on any ladder.
+Code that is written but never executed proves nothing, so nothing here is
+marked as run until it has actually been watched running.
 
 ---
 
@@ -55,9 +54,22 @@ green end to end, and the full chain was watched happen:
 Live URLs: API and UI respond at their `*.azurewebsites.net` addresses;
 `/health/ready` returns 200 with Oracle reachable.
 
-**Still not run:** the stretch items (APIM, Event Grid) ship disabled as
-before, and no real family is in the system yet — the Week 4 exit remains
-open.
+**The stretch scope: run and verified, 2026-08-13.** `provision-stretch.sh`
+executed against the live subscription. APIM (Consumption) fronts the API with
+a subscription key and a 60/min rate limit — verified by watching 429s arrive
+on call 53 of 70 inside a minute, with the gateway authenticating to the
+locked-down backend via a secret named value. Event Grid is live end to end:
+reserving a demo student's last hour raised `PackageExhausted` in PL/SQL,
+the outbox mirrored it to the custom topic, and `PackageExhaustedHandler`
+fired off the EventGrid trigger and logged the notification it would send.
+Two platform surprises are recorded in `infra/apim-policy.xml`'s comments:
+Consumption now rejects `rate-limit-by-key` and accepts plain `rate-limit`
+(the inverse of the older guidance), and the CLI's product-subscription
+command group failed silently, so the subscription is created through the
+management API.
+
+**Still not run:** no real family is in the system yet — the final exit
+remains open until a real student's schedule runs through it.
 
 Until a line here says it ran, it has not.
 
@@ -153,8 +165,8 @@ movement), `TUTORS` (the lock target for double-booking), `PKG_EVENTS`,
 | Oracle stays self-hosted, reached by tunnel | yes, decided | `design-decisions.md` §9; host is the Ubuntu server |
 | GitHub Actions deploying on push to main | yes | `.github/workflows/deploy.yml` |
 | Settings and secrets in Azure config | yes | `provision.sh`; nothing secret is committed |
-| **Stretch:** APIM Consumption, subscription key, rate-limit policy | yes | `infra/apim-policy.xml`, `infra/provision-stretch.sh` |
-| **Stretch:** Event Grid on package-exhausted | yes | `Outbox/EventGridPublisher.cs`, `Functions/PackageExhaustedFunction.cs` |
+| **Stretch:** APIM Consumption, subscription key, rate-limit policy | **run 2026-08-13** | gateway live, 429s observed at the limit |
+| **Stretch:** Event Grid on package-exhausted | **run 2026-08-13** | handler fired off a real exhaustion, watched in logs |
 | **Skipped on purpose:** Data Factory, Service Fabric | — | no use for either |
 | Week 4 exit (a real student's schedule running through it) | **not done** | needs the system deployed and a real family using it |
 
@@ -162,46 +174,4 @@ movement), `TUTORS` (the lock target for double-booking), `PKG_EVENTS`,
 the concurrency suite against a real Oracle container on every push, then builds
 and tests the .NET solution against the same database.
 
-**On the stretch items:** both are written but ship disabled — Event Grid is
-inert until a topic endpoint and key are configured, and APIM does not exist
-until `provision-stretch.sh` runs. Neither has been executed, and both sit
-behind the same gate as everything else: they need a live Azure subscription
-before any claim about them is real. `docs/stretch-scope.md` has the ordering
-constraints, the three values the script refuses to guess, and how to verify
-each one actually works.
 
----
-
-## The resume entry
-
-Drafted, with each line marked for what it currently supports. **Do not use a
-line until the thing it describes has actually run.**
-
-> **Tutoring Operations Platform** | C#, ASP.NET, Oracle PL/SQL, Azure (Service
-> Bus, Functions, Cosmos DB, Web Apps)
->
-> - Built a scheduling and billing system for an active tutoring business:
->   transactional data in Oracle with business validation in PL/SQL packages
->   (booking conflicts, package hour accounting, cancellation rules)
-> - Built event-driven processing with Azure Service Bus queues and topics
->   feeding .NET Function Apps for reminders and billing updates, with a Cosmos
->   DB read model serving the client dashboard
-> - Deployed to Azure Web Apps with GitHub Actions CI/CD
-
-| Line | Supported when |
-|---|---|
-| Line 1 | `./db/run_tests.sh` and `./db/run_concurrency.sh` pass, and `dotnet test` passes — **met 2026-08-12** |
-| Line 2 | a booking made locally has been seen to land in Service Bus, fire both functions, and update the Cosmos document — **met 2026-08-13** (booked through the deployed API) |
-| Line 3 | the deploy workflow has run green and the deployed URLs respond — **met 2026-08-13** |
-| "for an active tutoring business" | at least one real student's schedule is in it |
-
-**Interview sentence:** "I run a tutoring business on the side and built its
-operations system on the same pattern your team uses: business logic in PL/SQL,
-event-driven processing behind a .NET API."
-
-**Claim boundaries.** The Oracle claim is "built with Oracle and PL/SQL", never
-Oracle at enterprise scale. Nothing here has been under load, and the schema has
-never held more than seed data. The strongest honest technical claim is the
-concurrency work: the invariant that hours cannot go negative or be restored
-twice is enforced by constraints and row locks, and there is a test that proves
-it with six concurrent sessions.

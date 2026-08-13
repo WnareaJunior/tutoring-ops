@@ -118,7 +118,7 @@ it outright:
     echo 'precedence ::ffff:0:0/96  100' | sudo tee -a /etc/gai.conf
     sudo systemctl restart docker
 
-See docs/running-on-ubuntu-server.md for the rest.
+See docs/design-decisions.md for the hosting story.
 EOF
         summary_and_exit 1 "$CURRENT_STAGE"
     fi

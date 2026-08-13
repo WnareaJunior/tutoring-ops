@@ -83,12 +83,11 @@ checks are hard blockers worth knowing about before you start: **Oracle XE is
 x86_64 only** (there is no arm64 image), and it needs **about 2GB of RAM** or it
 dies partway through creating the database. It also reports the storage behind
 Docker's data root, which decides whether first boot takes three minutes or
-thirty. If an external SSD is available, putting Docker's data-root on it is by
-far the highest-leverage change — `docs/running-on-ubuntu-server.md` §3a.
+thirty — an SSD behind it is by far the highest-leverage change.
 
 If the server is a separate machine from the one you are typing on,
-`docs/running-on-ubuntu-server.md` covers the SSH tunnels, systemd units and the
-Tailscale step that lets a deployed Azure API reach the database.
+`scripts/remote.sh` syncs the working tree over SSH and runs any of this
+remotely; point `TUTORING_REMOTE` at the box.
 
 The steps individually:
 
@@ -217,7 +216,5 @@ reason rather than parsing prose.
 
 - `docs/design-decisions.md` — the choices worth defending, including where this
   departs from the original plan and why
-- `docs/running-on-ubuntu-server.md` — laptop-to-server setup, port forwarding,
-  systemd, and the troubleshooting for Oracle's specific failure modes
 - `docs/build-status.md` — exactly which parts have been executed and which have
   not, kept honest on purpose

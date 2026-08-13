@@ -8,96 +8,27 @@ The project exists to demonstrate a specific architecture, so the architecture
 is not negotiable in service of making something pass. Read "Rules that are not
 up for negotiation" before changing anything under `db/`.
 
----
+`docs/build-status.md` is the project's execution record: it tracks what is
+*written* separately from what has actually *run*, because only the second kind
+counts. Do not mark anything there as run until you have watched it run.
 
-## Current state: nothing has ever been executed
+## Where things run
 
-The code was written in an environment with no Oracle and no .NET SDK. The
-PL/SQL has never been compiled, and the C# has never been built. Only static
-checks were possible: every package spec member has a body implementation, and
-every `PKG_X.member` reference resolves.
+Nothing here assumes your laptop can run Oracle — the image is x86_64 only.
+If the database lives on another machine, `scripts/remote.sh` syncs the tree
+over SSH and runs anything there; set `TUTORING_REMOTE=user@host`. Long jobs
+(`verify`, `build`) run detached in tmux on the far end — start one, then poll
+with `tail`; do not wait on it synchronously. Do not edit files over SSH with
+`sed` or heredocs; edit locally and let `remote.sh` sync.
 
-**The immediate task is to get `./scripts/verify.sh` to pass end to end.** Expect
-genuine compile errors on the first run — that is the expected starting point,
-not a surprise.
-
-When it does pass, update the "Has it been run?" section of
-`docs/build-status.md`. That file is the project's claim-discipline record: it
-tracks what is *written* separately from what has actually *run*, because only
-the second kind counts. Do not mark anything there as run until you have watched
-it run.
-
-## The machines
-
-Two servers, two jobs (as of Aug 2026):
-
-**`devbox` — the dev server.** The desktop PC: WSL2 Ubuntu behind Tailscale,
-SSH port 2222, keys only (the laptop's `~/.ssh/config` has the block).
-`remote.sh` targets it by default. x86_64, 47GB RAM, fast disk.
-
-- After the desktop reboots, WSL only starts once someone logs into Windows:
-  `ping devbox` works while `ssh devbox` is refused. Nothing is broken.
-- `sudo` wants a password, and remote sessions cannot type one. The .NET SDK
-  is therefore user-local in `~/.dotnet` (remote.sh puts it on PATH);
-  anything needing root needs a human at the desktop.
-- Another agent runs a separate app's containers (`reroute-*`) in the same
-  WSL. Leave them alone; do not restart the Docker daemon casually.
-- Oracle XE 21c in Docker, bound to `127.0.0.1:1521`, same schema and
-  passwords as always (`db/docker-compose.yml`, local dev only).
-
-**`wilsserver` — the Azure VM, now only the deployed system's Oracle host.**
-The deployed API reaches it via VNet integration and a socat forwarder on its
-private IP. Managed with `scripts/dev-vm.sh`; bills ~$0.06/hr running.
-**Policy since 2026-08-13: runs 24/7 — the demo URLs depend on it.** The
-nightly auto-shutdown is disabled (`dev-vm.sh nightly` restores it). **If it
-is stopped or Oracle is down on it, the deployed site is degraded** —
-`restart: unless-stopped` brings Oracle up with the VM. Do not point the dev loop here; export `TUTORING_REMOTE` explicitly
-when it genuinely needs attention.
-
-## Where you are running
-
-**If this session is on a laptop and the server is remote:** nothing here can be
-executed locally. There is no Oracle and no database on the laptop. Edit files
-here, then run them there with `scripts/remote.sh`, which rsyncs the working
-tree before every command so what runs is always what you just edited.
-
-```bash
-./scripts/remote.sh install          # sync, then db/install.sh -- the main SQL loop
-./scripts/remote.sh tests            # sync, then the business rule suite
-./scripts/remote.sh concurrency      # sync, then the races
-./scripts/remote.sh run '<command>'  # sync, then anything, in the repo directory
-./scripts/remote.sh verify           # the full run -- DETACHED, poll it
-./scripts/remote.sh tail verify      # last 60 lines, returns immediately
-./scripts/remote.sh status verify    # still going?
-./scripts/remote.sh logs             # docker logs from the Oracle container
-```
-
-`verify` and `build` run detached in tmux on the server and tee to a log, so a
-20 minute job cannot be killed by a dropped connection or a tool timeout. Start
-one, then poll with `tail` — do not wait on it synchronously.
-
-Do not edit files over SSH with `sed` or heredocs. Edit them locally with the
-normal file tools; `remote.sh` gets them across.
-
-**If this session is on the server itself:** run the scripts directly.
-
-```bash
-./scripts/verify.sh              # everything: container, schema, both suites, build, tests
-./scripts/verify.sh --db-only    # stop after the SQL suites
-./scripts/bootstrap-ubuntu.sh --check   # preflight, changes nothing
-
-cd db
-./install.sh                     # schema + packages; prints USER_ERRORS and exits non-zero if any are INVALID
-./run_tests.sh                   # business rule suite
-./run_concurrency.sh             # races, driven from independent sqlplus sessions
-./seed.sh                        # demo data
-
-docker logs -f tutoring-oracle   # watch first boot; it is slow, not hung
-```
-
-Either way: iterate with install-then-tests, not with `verify.sh`. The full run
+Iterate with `install` then `tests`, not with `verify.sh` — the full run
 rebuilds .NET and re-runs everything, which is minutes of waiting for feedback
 you do not need while fixing a PL/SQL syntax error.
+
+The deployed system's Oracle is self-hosted and reached privately (VNet
+integration; see `docs/design-decisions.md` §9). If the deployed API's
+`/health/ready` reports Oracle unreachable, the database host is down or its
+container is not running.
 
 ## Rules that are not up for negotiation
 
@@ -147,7 +78,6 @@ These are the point of the project. A test failing against one of them means the
 | `src/TutoringOps.Web/` | Razor Pages: admin calendar, parent status page |
 | `docs/design-decisions.md` | Why things are the way they are — read before redesigning |
 | `docs/build-status.md` | Written vs. actually run. Keep it honest. |
-| `docs/running-on-ubuntu-server.md` | This machine's setup and troubleshooting |
 
 ## Conventions
 
@@ -156,9 +86,13 @@ These are the point of the project. A test failing against one of them means the
 - Test assertions go through `PKG_TEST`. Do not introduce utPLSQL.
 - Comments explain *why*, not what. Match the existing density; do not add
   narration to code that is already clear.
-- `main` is the public default branch, and pushing it deploys to Azure. Work
-  on `claude/tutoring-ops-system-jjcwz8` and merge to `main` when something
-  meaningful works and is verified.
+- `main` is the default branch, and pushing it deploys to Azure. Work on a
+  feature branch and merge to `main` when something meaningful works and is
+  verified.
+- Secrets never enter this repository. The admin passcode, the ops API key,
+  and every connection string live in Azure app settings only. The passwords
+  in `db/docker-compose.yml` are local-dev-only by design and documented as
+  such.
 
 ## Gotchas that will cost you an hour
 
@@ -168,8 +102,8 @@ These are the point of the project. A test failing against one of them means the
 - **The app user is created on first boot only.** If `install.sh` cannot connect
   as `tutoring` but the container is healthy, the volume predates the `APP_USER`
   setting. Same recovery as above.
-- **Image pulls can fail over IPv6** with `connection reset by peer` on this
-  network. `verify.sh` retries five times; if it still fails, append
+- **Image pulls can fail over IPv6** with `connection reset by peer` on some
+  networks. `verify.sh` retries five times; if it still fails, append
   `precedence ::ffff:0:0/96  100` to `/etc/gai.conf` and restart Docker.
 - **`docker.socket` restarts the daemon** via socket activation. Stop both when
   doing anything to Docker's storage.

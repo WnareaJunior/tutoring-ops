@@ -9,6 +9,10 @@ services:
   oracle:
     image: gvenzl/oracle-xe:21-slim
     container_name: tutoring-oracle
+    # The host is stopped and started daily (a pay-per-hour VM); without this
+    # the container stays exited after every boot and the deployed API finds
+    # nothing at the far end of its connection.
+    restart: unless-stopped
     ports:
       # Bound to loopback on purpose. This runs on a server, and "1521:1521"
       # would publish it on every interface -- an Oracle listener with a

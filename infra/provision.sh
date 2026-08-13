@@ -11,8 +11,8 @@
 # Cost note: everything here is free tier or the cheapest paid tier that
 # supports the feature. Service Bus is Standard because topics require it
 # (Basic gives queues only). Oracle is NOT provisioned -- it stays self-hosted
-# on the Ubuntu server and the API reaches it over a tunnel. Oracle in Azure
-# costs real money and would not make the resume line any more true.
+# and the API reaches it privately. Oracle in Azure costs real money and adds
+# nothing here; see docs/design-decisions.md.
 # =============================================================================
 set -euo pipefail
 

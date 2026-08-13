@@ -135,7 +135,7 @@ case "$ROTATIONAL" in
 esac
 
 # --- disk health -------------------------------------------------------------
-# A disk in a 2012 machine has had a long life. Worth knowing before a business
+# A disk in an old machine has had a long life. Worth knowing before a business
 # database goes on it, not after.
 if [[ -n "$DISK_DEV" ]]; then
     if command -v smartctl >/dev/null 2>&1; then

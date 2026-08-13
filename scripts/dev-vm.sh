@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Temporary Azure dev VM -- the wilsserver stand-in until the desktop server
-# is ready. An x86_64 box for Oracle XE, paid for by the hour, deallocated
-# whenever it is not actively in use.
+# A small Azure VM to host Oracle XE (x86_64), paid for by the hour. Used
+# here as the deployed system's database host; also works as a disposable
+# dev server for anyone without x86_64 hardware.
 #
 #   ./scripts/dev-vm.sh create    one-time: resource group, VM, lockdown, auto-shutdown
 #   ./scripts/dev-vm.sh start     boot it and wait for SSH
@@ -16,11 +16,9 @@
 #   ./scripts/dev-vm.sh nightly   restore the nightly 07:00 UTC auto-shutdown
 #   ./scripts/dev-vm.sh delete    remove everything, including the disk
 #
-# CURRENT POLICY (since 2026-08-13): the VM runs 24/7. It is no longer the dev
-# server -- devbox is -- but it hosts Oracle for the DEPLOYED site, which the
-# demo URLs depend on. The nightly auto-shutdown is disabled; `stop` takes the
-# demo down with it. ~$45/mo while this holds. Revert with `nightly` when the
-# demo no longer needs to be always-up.
+# If the deployed site's database lives on this VM, `stop` takes the site
+# down with it; `always-on` disables the nightly auto-shutdown for exactly
+# that situation.
 #
 # Costs while this exists (northcentralus, Aug 2026 ballpark):
 #   running      ~$0.06/hr  (Standard_B2as_v2, 2 vCPU x86_64, 8GB)
@@ -39,7 +37,7 @@ VM="tutoring-dev"
 LOCATION="northcentralus"
 SIZE="Standard_B2as_v2"
 IMAGE="Canonical:ubuntu-24_04-lts:server:latest"
-ADMIN="wnarea"
+ADMIN="${VM_ADMIN:-$USER}"
 SSH_KEY="$HOME/.ssh/id_ed25519.pub"
 
 # -4: this network hands out IPv6 by default, but the NSG rule and the VM's
@@ -86,7 +84,7 @@ case "${1:-}" in
         IP="$(az vm show -d --resource-group "$RG" --name "$VM" --query publicIps -o tsv)"
         echo
         echo "VM is up at $IP"
-        echo "Point ~/.ssh/config's 'wilsserver' HostName at that IP, then:"
+        echo "Add an ~/.ssh/config entry for that IP, set TUTORING_REMOTE, then:"
         echo "  ./scripts/remote.sh run './scripts/bootstrap-ubuntu.sh'"
         ;;
 
