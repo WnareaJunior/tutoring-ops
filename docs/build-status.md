@@ -68,8 +68,13 @@ Consumption now rejects `rate-limit-by-key` and accepts plain `rate-limit`
 command group failed silently, so the subscription is created through the
 management API.
 
-**Still not run:** no real family is in the system yet — the final exit
-remains open until a real student's schedule runs through it.
+**Real students: enrolled 2026-08-13.** Three real students (with parental
+details on file) were created through the deployed API and hold their parent
+access codes. None has prepaid hours yet, and the system refuses to book
+their weekly slots until they do — `ERR_INSUFFICIENT_HOURS`, the rules doing
+their job. The final exit — a real student's schedule actually running
+through the system — closes when the first real package is recorded and the
+first real session is booked, taught, and completed.
 
 Until a line here says it ran, it has not.
 
