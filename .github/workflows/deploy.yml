@@ -90,10 +90,16 @@ jobs:
           PUBLISH_PROFILE: ${{ secrets.AZURE_UI_PUBLISH_PROFILE }}
         run: ./scripts/kudu-zipdeploy.sh web.zip
 
+      # The Function App is the one place the raw Kudu POST does not work:
+      # Linux Consumption needs the run-from-package choreography (upload,
+      # setting, trigger sync) that this action performs. The web apps above
+      # stay on the curl path, which azure/webapps-deploy rejected.
       - name: Deploy Functions
-        env:
-          PUBLISH_PROFILE: ${{ secrets.AZURE_FUNCTION_PUBLISH_PROFILE }}
-        run: ./scripts/kudu-zipdeploy.sh functions.zip
+        uses: Azure/functions-action@v1
+        with:
+          app-name: ${{ secrets.AZURE_FUNCTION_APP_NAME }}
+          publish-profile: ${{ secrets.AZURE_FUNCTION_PUBLISH_PROFILE }}
+          package: ./publish/functions
 
       - name: Smoke test
         run: |
