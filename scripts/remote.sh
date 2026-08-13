@@ -40,8 +40,16 @@
 # =============================================================================
 set -euo pipefail
 
-REMOTE="${TUTORING_REMOTE:-wnarea@wilsserver}"
+# devbox is the desktop dev server (WSL2 behind Tailscale; see the connection
+# doc). wilsserver -- the Azure VM -- still exists but only to serve Oracle to
+# the deployed API: export TUTORING_REMOTE=wnarea@wilsserver to target it.
+REMOTE="${TUTORING_REMOTE:-wnarea@devbox}"
 REMOTE_DIR="${TUTORING_REMOTE_DIR:-tutoring-ops}"
+
+# The .NET SDK on devbox is a user-local install (WSL sudo wants a password,
+# which a non-interactive session cannot give), and non-interactive ssh never
+# reads .bashrc -- so put it on PATH here.
+DOTNET_PATH='PATH="$PATH:$HOME/.dotnet:$HOME/.dotnet/tools"'
 
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 
@@ -68,7 +76,7 @@ sync_tree() {
 
 remote_run() {
     # -t so colour and progress output survive the hop.
-    ssh -t "$REMOTE" "cd '$REMOTE_DIR' && $1"
+    ssh -t "$REMOTE" "cd '$REMOTE_DIR' && export $DOTNET_PATH && $1"
 }
 
 # Detached: survives this SSH session ending, and can be polled.
@@ -79,7 +87,7 @@ remote_bg() {
 
     ssh "$REMOTE" "tmux kill-session -t '$name' 2>/dev/null || true"
     ssh "$REMOTE" "cd '$REMOTE_DIR' && tmux new -d -s '$name' \
-        \"($command) 2>&1 | tee '$log'\""
+        \"export $DOTNET_PATH; ($command) 2>&1 | tee '$log'\""
 
     echo "Started '$name' on $REMOTE, logging to $log"
     echo

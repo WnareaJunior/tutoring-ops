@@ -27,22 +27,31 @@ tracks what is *written* separately from what has actually *run*, because only
 the second kind counts. Do not mark anything there as run until you have watched
 it run.
 
-## This machine
+## The machines
 
-The server behind `wilsserver` is a **temporary Azure VM** (as of Aug 2026; the
-2012 Intel Mac it replaced is retired, and a desktop dev server will replace
-the VM in turn). Managed with `scripts/dev-vm.sh`:
+Two servers, two jobs (as of Aug 2026):
 
-- `Standard_B2as_v2` (2 vCPU x86_64, 8GB), Ubuntu 24.04, `northcentralus`,
-  static IP baked into `~/.ssh/config` on the laptop.
-- **It bills by the hour (~$0.06) while running. Stop it when done:**
-  `./scripts/dev-vm.sh stop`. Start with `start`. A nightly 07:00 UTC
-  auto-shutdown is the backstop, not the routine.
-- SSH is allowed only from the laptop's home IPv4; after an IP change run
-  `./scripts/dev-vm.sh allow-me`.
-- Oracle XE 21c in Docker, bound to `127.0.0.1:1521`. Schema `tutoring`,
-  service `XEPDB1`, password in `db/docker-compose.yml` (local dev only).
-  Port 1521 is not open to the internet; only SSH is.
+**`devbox` — the dev server.** The desktop PC: WSL2 Ubuntu behind Tailscale,
+SSH port 2222, keys only (the laptop's `~/.ssh/config` has the block).
+`remote.sh` targets it by default. x86_64, 47GB RAM, fast disk.
+
+- After the desktop reboots, WSL only starts once someone logs into Windows:
+  `ping devbox` works while `ssh devbox` is refused. Nothing is broken.
+- `sudo` wants a password, and remote sessions cannot type one. The .NET SDK
+  is therefore user-local in `~/.dotnet` (remote.sh puts it on PATH);
+  anything needing root needs a human at the desktop.
+- Another agent runs a separate app's containers (`reroute-*`) in the same
+  WSL. Leave them alone; do not restart the Docker daemon casually.
+- Oracle XE 21c in Docker, bound to `127.0.0.1:1521`, same schema and
+  passwords as always (`db/docker-compose.yml`, local dev only).
+
+**`wilsserver` — the Azure VM, now only the deployed system's Oracle host.**
+The deployed API reaches it via VNet integration and a socat forwarder on its
+private IP. Managed with `scripts/dev-vm.sh`; bills ~$0.06/hr running,
+auto-stops 07:00 UTC nightly. **If it is stopped or Oracle is down on it, the
+deployed site is degraded** — `restart: unless-stopped` brings Oracle up with
+the VM. Do not point the dev loop here; export `TUTORING_REMOTE` explicitly
+when it genuinely needs attention.
 
 ## Where you are running
 
