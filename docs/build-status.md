@@ -15,40 +15,32 @@ Code that is written but never executed is not a rung on any ladder.
 
 ## Has it been run?
 
-**No. Nothing in this repository has been executed yet.**
+**The database and .NET layers: yes.** On 2026-08-12, `./scripts/verify.sh`
+passed end to end against Oracle XE 21c in Docker on an x86_64 Ubuntu 24.04
+Azure VM (the interim dev server; see `scripts/dev-vm.sh`):
 
-It was authored in an environment with no reachable Oracle and no .NET SDK: the
-egress policy blocked Docker Hub (so `gvenzl/oracle-xe` could not be pulled) and
-every Microsoft download host (so the .NET 8 SDK could not be installed). The
-PL/SQL has therefore never been compiled by Oracle, and the C# has never been
-compiled by `dotnet build`.
+| Gate | Result |
+|---|---|
+| Schema + packages install | every package VALID |
+| Business rule suite (`db/run_tests.sh`) | 164 passed, 0 failed |
+| Concurrency suite (`db/run_concurrency.sh`) | 13 passed, 0 failed — real races, 6 sessions |
+| `dotnet build` (Release) | 0 errors, 0 warnings |
+| `dotnet test` | 9 passed, **0 skipped** — ran against live Oracle |
 
-What *was* done instead: a static check across the PL/SQL sources confirming
-that every subprogram declared in a package spec has an implementation in its
-body, and that every `PKG_X.member` reference in the codebase resolves to
-something that package actually declares. That catches the most common class of
-compile error and nothing more. Expect to fix real compile errors on the first
-run.
+The first run surfaced five genuine bugs the static checks could not catch,
+all fixed in the two commits of that date: a validation-order bug in
+`book_session` (business hours checked before past-ness), `SQLCODE` referenced
+inside SQL in all four concurrency racer blocks (ORA-00984, which silently
+killed every racer), a Sunday-slide slot collision in race B, a missing
+`ServiceBusMessage` copy constructor, and a missing Application Insights
+package reference.
 
-**First run should be, in this order:**
+**The Azure chain (Weeks 3–4): still not run.** No Service Bus namespace,
+Function App, Cosmos account, or Web App exists yet; `infra/provision.sh` has
+never executed and the deploy workflow has never fired. Those claims remain
+gated on a live deployment.
 
-```bash
-cd db
-docker compose up -d
-./install.sh          # fails loudly if any package is INVALID
-./run_tests.sh        # the business-rule suite
-./run_concurrency.sh  # the concurrency suite
-
-cd ../src
-dotnet build TutoringOps.sln
-dotnet test TutoringOps.sln
-```
-
-`install.sh` queries `user_objects` for anything not `VALID` and exits non-zero,
-so a package that compiled with errors cannot pass silently.
-
-Update this section as things actually run. Until a line here says it ran, it
-has not.
+Until a line here says it ran, it has not.
 
 ---
 
@@ -179,7 +171,7 @@ line until the thing it describes has actually run.**
 
 | Line | Supported when |
 |---|---|
-| Line 1 | `./db/run_tests.sh` and `./db/run_concurrency.sh` pass, and `dotnet test` passes |
+| Line 1 | `./db/run_tests.sh` and `./db/run_concurrency.sh` pass, and `dotnet test` passes — **met 2026-08-12** |
 | Line 2 | a booking made locally has been seen to land in Service Bus, fire both functions, and update the Cosmos document |
 | Line 3 | the deploy workflow has run green and the deployed URLs respond |
 | "for an active tutoring business" | at least one real student's schedule is in it |
