@@ -107,13 +107,15 @@ CREATE OR REPLACE PACKAGE BODY PKG_SCHEDULING AS
       RETURN;
     END IF;
 
-    p_result := PKG_VALIDATION.check_business_hours(p_start_time, p_duration);
-    IF p_result <> PKG_VALIDATION.c_ok THEN
+    -- Past-ness before business hours: a start in the past is in the past no
+    -- matter what hour of day it fell on, and the more specific error wins.
+    IF p_start_time <= SYSTIMESTAMP THEN
+      p_result := PKG_VALIDATION.c_err_start_in_past;
       RETURN;
     END IF;
 
-    IF p_start_time <= SYSTIMESTAMP THEN
-      p_result := PKG_VALIDATION.c_err_start_in_past;
+    p_result := PKG_VALIDATION.check_business_hours(p_start_time, p_duration);
+    IF p_result <> PKG_VALIDATION.c_ok THEN
       RETURN;
     END IF;
 

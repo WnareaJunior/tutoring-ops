@@ -36,6 +36,12 @@ SET FEEDBACK OFF
 SET PAGESIZE 100
 WHENEVER SQLERROR EXIT FAILURE
 
+-- Reinstalling a package invalidates its dependents (PKG_TEST, from the test
+-- suite, depends on several). That is Oracle bookkeeping, not a compile error,
+-- and one recompile pass clears it; anything genuinely broken stays INVALID
+-- and fails the check below.
+EXEC DBMS_UTILITY.compile_schema(schema => USER, compile_all => FALSE)
+
 COLUMN object_name FORMAT A30
 SELECT object_type, object_name, status
   FROM user_objects

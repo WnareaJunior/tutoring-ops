@@ -30,6 +30,11 @@ source "$HERE/env.sh"
 RACERS="${RACERS:-6}"
 BUYERS="${BUYERS:-4}"
 
+# Each racer's sqlplus output is kept, not discarded: when a race goes wrong
+# the racers' own errors are the only evidence of why.
+RACE_OUT="$(mktemp -d /tmp/tutoring-race.XXXXXX)"
+echo "racer session logs: $RACE_OUT"
+
 db_wait_for_ready 12
 
 echo "--- installing the assertion harness"
@@ -88,7 +93,7 @@ SQL
 pids=()
 
 for ((i = 1; i <= RACERS; i++)); do
-  db_exec >/dev/null 2>&1 <<SQL &
+  db_exec >"$RACE_OUT/A-cancel-$i.log" 2>&1 <<SQL &
 SET FEEDBACK OFF
 DECLARE
   l_session NUMBER;
@@ -109,8 +114,11 @@ BEGIN
 EXCEPTION
   WHEN OTHERS THEN
     ROLLBACK;
+    -- SQLCODE cannot appear inside a SQL statement (ORA-00984);
+    -- it has to land in a variable first.
+    l_result := 'EXCEPTION ' || SQLCODE;
     INSERT INTO RACE_LOG (PHASE, RACER, ACTION, RESULT)
-    VALUES ('A', $i, 'CANCEL', 'EXCEPTION ' || SQLCODE);
+    VALUES ('A', $i, 'CANCEL', l_result);
     COMMIT;
 END;
 /
@@ -120,7 +128,7 @@ SQL
 done
 
 for ((i = 1; i <= BUYERS; i++)); do
-  db_exec >/dev/null 2>&1 <<SQL &
+  db_exec >"$RACE_OUT/A-buy-$i.log" 2>&1 <<SQL &
 SET FEEDBACK OFF
 DECLARE
   l_student NUMBER;
@@ -137,8 +145,11 @@ BEGIN
 EXCEPTION
   WHEN OTHERS THEN
     ROLLBACK;
+    -- SQLCODE cannot appear inside a SQL statement (ORA-00984);
+    -- it has to land in a variable first.
+    l_result := 'EXCEPTION ' || SQLCODE;
     INSERT INTO RACE_LOG (PHASE, RACER, ACTION, RESULT)
-    VALUES ('A', $i, 'PURCHASE', 'EXCEPTION ' || SQLCODE);
+    VALUES ('A', $i, 'PURCHASE', l_result);
     COMMIT;
 END;
 /
@@ -173,8 +184,10 @@ SQL
 pids=()
 for ((i = 1; i <= RACERS; i++)); do
   # Each racer takes a different day, so nothing is rejected for overlapping --
-  # the only scarce resource in this race is the balance.
-  db_exec >/dev/null 2>&1 <<SQL &
+  # the only scarce resource in this race is the balance. Two days apart, not
+  # one: slot() slides a Sunday to the Monday after it, and six consecutive
+  # days always contain a Sunday, which would put two racers on the same day.
+  db_exec >"$RACE_OUT/B-book-$i.log" 2>&1 <<SQL &
 SET FEEDBACK OFF
 DECLARE
   l_student NUMBER;
@@ -183,7 +196,7 @@ DECLARE
 BEGIN
   SELECT STUDENT_ID INTO l_student FROM STUDENTS WHERE FULL_NAME = 'Scarce Student';
 
-  PKG_SCHEDULING.book_session(l_student, PKG_TEST.slot(14 + $i, 10), 60, NULL, 1,
+  PKG_SCHEDULING.book_session(l_student, PKG_TEST.slot(14 + 2 * $i, 10), 60, NULL, 1,
                               l_session, l_result);
 
   INSERT INTO RACE_LOG (PHASE, RACER, ACTION, RESULT)
@@ -192,8 +205,11 @@ BEGIN
 EXCEPTION
   WHEN OTHERS THEN
     ROLLBACK;
+    -- SQLCODE cannot appear inside a SQL statement (ORA-00984);
+    -- it has to land in a variable first.
+    l_result := 'EXCEPTION ' || SQLCODE;
     INSERT INTO RACE_LOG (PHASE, RACER, ACTION, RESULT)
-    VALUES ('B', $i, 'BOOK', 'EXCEPTION ' || SQLCODE);
+    VALUES ('B', $i, 'BOOK', l_result);
     COMMIT;
 END;
 /
@@ -226,7 +242,7 @@ SQL
 
 pids=()
 for ((i = 1; i <= RACERS; i++)); do
-  db_exec >/dev/null 2>&1 <<SQL &
+  db_exec >"$RACE_OUT/C-book-$i.log" 2>&1 <<SQL &
 SET FEEDBACK OFF
 DECLARE
   l_student NUMBER;
@@ -244,8 +260,11 @@ BEGIN
 EXCEPTION
   WHEN OTHERS THEN
     ROLLBACK;
+    -- SQLCODE cannot appear inside a SQL statement (ORA-00984);
+    -- it has to land in a variable first.
+    l_result := 'EXCEPTION ' || SQLCODE;
     INSERT INTO RACE_LOG (PHASE, RACER, ACTION, RESULT)
-    VALUES ('C', $i, 'BOOK', 'EXCEPTION ' || SQLCODE);
+    VALUES ('C', $i, 'BOOK', l_result);
     COMMIT;
 END;
 /
@@ -267,7 +286,7 @@ WHENEVER SQLERROR EXIT FAILURE
 
 COLUMN action FORMAT A12
 COLUMN result FORMAT A26
-PROMPT --- what each racer saw ---
+PROMPT --- what each racer saw
 SELECT PHASE, ACTION, RESULT, COUNT(*) AS RACERS
   FROM RACE_LOG
  GROUP BY PHASE, ACTION, RESULT
