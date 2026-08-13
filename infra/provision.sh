@@ -212,6 +212,22 @@ az functionapp create \
   --os-type Linux \
   --output none
 
+# New apps come with SCM basic auth disabled, which silently voids every
+# publish profile (the deploy action gets a 401 from Kudu and reports the
+# profile as "invalid"). The GitHub workflow deploys with publish profiles
+# because this tenant refuses service principals, so basic auth stays on.
+echo "--- enabling publish-profile (basic auth) deployment"
+for app in "$API_APP" "$UI_APP" "$FUNCTION_APP"; do
+  az resource update \
+    --resource-group "$RESOURCE_GROUP" \
+    --namespace Microsoft.Web \
+    --resource-type basicPublishingCredentialsPolicies \
+    --name scm \
+    --parent "sites/$app" \
+    --set properties.allow=true \
+    --output none
+done
+
 # -----------------------------------------------------------------------------
 # Configuration. Secrets are set here and never committed.
 # -----------------------------------------------------------------------------
