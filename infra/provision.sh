@@ -28,9 +28,20 @@ SB_TOPIC="session-notifications"
 SUB_REMINDERS="reminders"
 SUB_BILLING="billing-updates"
 
-COSMOS_ACCOUNT="${COSMOS_ACCOUNT:-cosmos-${PREFIX}-${SUFFIX}}"
+# Not ${PREFIX}: early failed create attempts left the original name behind as
+# unrecreatable corpses, so the account name moved on.
+COSMOS_ACCOUNT="${COSMOS_ACCOUNT:-cosmos-tutoring-${SUFFIX}}"
+# Its own region knob: Cosmos rejects new accounts in a region at "high
+# demand" (North Central US did, Aug 2026), and a read model a region over
+# is indistinguishable at this scale.
+COSMOS_LOCATION="${COSMOS_LOCATION:-$LOCATION}"
 COSMOS_DB="tutoring"
 COSMOS_CONTAINER="student-dashboards"
+
+# Same story as Cosmos: Linux Consumption was not offered in North Central US
+# for this subscription, and a Service Bus trigger does not care which region
+# its worker wakes up in.
+FUNCTION_LOCATION="${FUNCTION_LOCATION:-$LOCATION}"
 
 STORAGE_ACCOUNT="${STORAGE_ACCOUNT:-st${PREFIX}${SUFFIX}}"
 PLAN_NAME="${PLAN_NAME:-plan-${PREFIX}}"
@@ -127,14 +138,14 @@ echo "--- Cosmos DB"
 az cosmosdb create \
   --resource-group "$RESOURCE_GROUP" \
   --name "$COSMOS_ACCOUNT" \
-  --locations regionName="$LOCATION" failoverPriority=0 isZoneRedundant=False \
+  --locations regionName="$COSMOS_LOCATION" failoverPriority=0 isZoneRedundant=False \
   --default-consistency-level Session \
   --enable-free-tier true \
   --output none 2>/dev/null || \
 az cosmosdb create \
   --resource-group "$RESOURCE_GROUP" \
   --name "$COSMOS_ACCOUNT" \
-  --locations regionName="$LOCATION" failoverPriority=0 isZoneRedundant=False \
+  --locations regionName="$COSMOS_LOCATION" failoverPriority=0 isZoneRedundant=False \
   --default-consistency-level Session \
   --output none
 
@@ -194,7 +205,7 @@ az functionapp create \
   --resource-group "$RESOURCE_GROUP" \
   --name "$FUNCTION_APP" \
   --storage-account "$STORAGE_ACCOUNT" \
-  --consumption-plan-location "$LOCATION" \
+  --consumption-plan-location "$FUNCTION_LOCATION" \
   --runtime dotnet-isolated \
   --runtime-version 8 \
   --functions-version 4 \
