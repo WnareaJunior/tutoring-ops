@@ -29,15 +29,20 @@ it run.
 
 ## This machine
 
-- Ubuntu on `wilsserver` — a 2012 Intel Mac. x86_64, which Oracle XE requires.
-- **Docker data-root is on an external Samsung T7 SSD at `/srv/storage/docker`.**
-  The root filesystem is on the internal Apple HDD (LVM), which is slow. Keep
-  heavy I/O on the SSD.
-- A systemd drop-in (`RequiresMountsFor=/srv/storage`) stops Docker starting
-  when the SSD is absent. If Docker refuses to start, check that mount first.
+The server behind `wilsserver` is a **temporary Azure VM** (as of Aug 2026; the
+2012 Intel Mac it replaced is retired, and a desktop dev server will replace
+the VM in turn). Managed with `scripts/dev-vm.sh`:
+
+- `Standard_B2as_v2` (2 vCPU x86_64, 8GB), Ubuntu 24.04, `northcentralus`,
+  static IP baked into `~/.ssh/config` on the laptop.
+- **It bills by the hour (~$0.06) while running. Stop it when done:**
+  `./scripts/dev-vm.sh stop`. Start with `start`. A nightly 07:00 UTC
+  auto-shutdown is the backstop, not the routine.
+- SSH is allowed only from the laptop's home IPv4; after an IP change run
+  `./scripts/dev-vm.sh allow-me`.
 - Oracle XE 21c in Docker, bound to `127.0.0.1:1521`. Schema `tutoring`,
   service `XEPDB1`, password in `db/docker-compose.yml` (local dev only).
-- Reached from a laptop over SSH port forwards. Nothing is exposed publicly.
+  Port 1521 is not open to the internet; only SSH is.
 
 ## Where you are running
 
