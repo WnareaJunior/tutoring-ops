@@ -57,6 +57,8 @@ jobs:
     environment: production
 
     steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           name: publish
@@ -68,26 +70,30 @@ jobs:
       #   az webapp deployment list-publishing-profiles -g <rg> -n <app> --xml
       # (functionapp for the function app) and is scoped to that one app,
       # which is tighter than the contributor SP would have been anyway.
+      #
+      # The zips are POSTed to Kudu directly (scripts/kudu-zipdeploy.sh):
+      # azure/webapps-deploy@v3 rejected these same profiles with an opaque
+      # "profile is invalid" from its pre-deploy validation.
+      - name: Zip the publish outputs
+        run: |
+          (cd publish/api       && zip -qr ../../api.zip .)
+          (cd publish/web       && zip -qr ../../web.zip .)
+          (cd publish/functions && zip -qr ../../functions.zip .)
+
       - name: Deploy API
-        uses: azure/webapps-deploy@v3
-        with:
-          app-name: ${{ secrets.AZURE_API_APP_NAME }}
-          publish-profile: ${{ secrets.AZURE_API_PUBLISH_PROFILE }}
-          package: ./publish/api
+        env:
+          PUBLISH_PROFILE: ${{ secrets.AZURE_API_PUBLISH_PROFILE }}
+        run: ./scripts/kudu-zipdeploy.sh api.zip
 
       - name: Deploy UI
-        uses: azure/webapps-deploy@v3
-        with:
-          app-name: ${{ secrets.AZURE_UI_APP_NAME }}
-          publish-profile: ${{ secrets.AZURE_UI_PUBLISH_PROFILE }}
-          package: ./publish/web
+        env:
+          PUBLISH_PROFILE: ${{ secrets.AZURE_UI_PUBLISH_PROFILE }}
+        run: ./scripts/kudu-zipdeploy.sh web.zip
 
       - name: Deploy Functions
-        uses: Azure/functions-action@v1
-        with:
-          app-name: ${{ secrets.AZURE_FUNCTION_APP_NAME }}
-          publish-profile: ${{ secrets.AZURE_FUNCTION_PUBLISH_PROFILE }}
-          package: ./publish/functions
+        env:
+          PUBLISH_PROFILE: ${{ secrets.AZURE_FUNCTION_PUBLISH_PROFILE }}
+        run: ./scripts/kudu-zipdeploy.sh functions.zip
 
       - name: Smoke test
         run: |
