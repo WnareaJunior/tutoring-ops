@@ -156,8 +156,9 @@ These are the point of the project. A test failing against one of them means the
 - Test assertions go through `PKG_TEST`. Do not introduce utPLSQL.
 - Comments explain *why*, not what. Match the existing density; do not add
   narration to code that is already clear.
-- Work on branch `claude/tutoring-ops-system-jjcwz8`. Commit and push when
-  something meaningful works.
+- `main` is the public default branch, and pushing it deploys to Azure. Work
+  on `claude/tutoring-ops-system-jjcwz8` and merge to `main` when something
+  meaningful works and is verified.
 
 ## Gotchas that will cost you an hour
 

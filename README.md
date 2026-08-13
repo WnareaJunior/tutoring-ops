@@ -9,6 +9,23 @@ Cosmos DB read model for the parent-facing dashboard.
 The point of the architecture is the first sentence: **the rules are in the
 database.** Everything above it asks and displays.
 
+## Live demo
+
+| | |
+|---|---|
+| Admin UI (calendar, students, packages) | <https://app-tutoringops-ui-204360.azurewebsites.net> |
+| Parent view (what a family sees) | <https://app-tutoringops-ui-204360.azurewebsites.net/Status> |
+| API health, including the Oracle round-trip | <https://app-tutoringops-api-204360.azurewebsites.net/health/ready> |
+
+Demo access codes for the parent view: `T6THSXKE` (Maria Rodriguez — a
+Spanish-preference family, so her page renders in Spanish) or `5XJT62Y7`
+(James Chen, English). The parent dashboard is served from the Cosmos DB read
+model; the admin pages talk to Oracle through the API. Booking something on
+the Schedule page and watching it appear on the family's dashboard a few
+seconds later is the whole event pipeline doing its job.
+
+It runs on the cheapest tiers Azure sells, so give a cold page a few seconds.
+
 ```
 ┌──────────────┐   HTTP    ┌──────────────┐   stored procs   ┌────────────────────┐
 │  Razor Pages │──────────▶│  ASP.NET API │─────────────────▶│  Oracle XE 21c     │
